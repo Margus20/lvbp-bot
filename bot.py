@@ -31,24 +31,28 @@ def main():
     print("Tamaño HTML: " + str(len(html)))
     soup = BeautifulSoup(html, 'html.parser')
     
-    # 2. Buscar títulos
-    titulos = soup.find_all(['h1', 'h2', 'h3', 'a', 'span'])
+    # 2. Buscar textos (Filtrando para evitar el menú)
+    titulos = soup.find_all(['h1', 'h2', 'h3', 'h4', 'p', 'span'])
     encontrados = []
+    
     for t in titulos:
         txt = t.get_text(strip=True)
-        if len(txt) > 15 and len(txt) < 100:
+        # Buscamos textos largos que parezcan títulos de noticias reales
+        if len(txt) > 30 and len(txt) < 150:
             if txt not in encontrados:
                 encontrados.append(txt)
 
-    print("TITULOS ENCONTRADOS POR EL BOT:")
+    print("TITULOS ENCONTRADOS:")
     for i, t in enumerate(encontrados[:3]):
         print(str(i+1) + ". " + t)
-        texto = "🦈 <b>TIBURONES</b>\n\n<b>" + t + "</b>\n\n🔗 tiburonesbbc.com"
+        
+        # SIN ENLACES EXTERNOS
+        texto = "🦈 <b>TIBURONES DE LA GUAIRA</b>\n\n<b>" + t + "</b>"
         enviar_foto(LOGO, texto)
 
     # 3. Publicar Calendario
     link_cal = "https://i.postimg.cc/FKjfcHxV/1791385375160-11zon.jpg"
-    texto_cal = "📅 <b>CALENDARIO TIBURONES - OCTUBRE 2026</b>\n\nSemana 1: 12-16 de octubre"
+    texto_cal = " <b>CALENDARIO TIBURONES - OCTUBRE 2026</b>\n\nSemana 1: 12-16 de octubre"
     enviar_foto(link_cal, texto_cal)
     
     print("Proceso terminado.")
