@@ -81,74 +81,202 @@ def obtener_noticias_por_equipo(equipo, keywords):
     noticias = []
     keyword = keywords[0]
     rss_url = "https://news.google.com/rss/search?q=" + keyword + " béisbol&hl=es&gl=VE&ceid=VE:es"
+import requests
+from bs4 import BeautifulSoup
+import os
+import re
+from datetime import datetime
+
+TOKEN = os.environ.get('BOT_TOKEN')
+CHANNEL = '@LVBPAlDia'
+
+# 1. LOGOS (Todos los equipos + General)
+LOGOS = {
+    'tiburones': 'https://i.postimg.cc/J7Hm024y/image-search-1791382706892.png',
+    'aguilas': 'https://i.postimg.cc/J4wxQnwX/1791392132263-11zon.jpg',
+    'tigres': 'https://i.postimg.cc/0QRG0W3n/1791393470300-11zon.jpg',
+    'caribes': 'https://i.postimg.cc/0j685n5D/image-search-1791393733450-11zon.webp',
+    'bravos': 'https://i.postimg.cc/PJh5yYdY/1791395148443-11zon.jpg',
+    'cardenales': 'https://i.postimg.cc/HLpzqP32/image-search-1791395610326-11zon.jpg',
+    'navegantes': 'https://i.postimg.cc/ydNH8j6v/1791396497437-11zon.jpg',
+    'leones': 'https://i.postimg.cc/Kjrw7g8p/image-search-1791396859705.jpg',
+    'general': 'https://i.postimg.cc/T29t9x9M/image-search-1791397173263.jpg'
+}
+
+# 2. KEYWORDS (Exactas para evitar confusión con la MLB)
+EQUIPOS_KEYWORDS = {
+    'tiburones': ['tiburones de la guaira', 'tiburones'],
+    'aguilas': ['aguilas del zulia', 'aguilas zulia'],
+    'tigres': ['tigres de aragua', 'tigres aragua'],
+    'caribes': ['caribes de anzoategui', 'caribes anzoategui'],
+    'bravos': ['bravos de margarita', 'bravos margarita'],
+    'cardenales': ['cardenales de lara', 'cardenales lara'],
+    'navegantes': ['navegantes del magallanes', 'navegantes magallanes'],
+    'leones': ['leones del caracas', 'leones caracas']
+}
+
+# 3. CALENDARIO
+CALENDARIO_SEMANAS = {
+    "2026-10-12": "https://i.postimg.cc/FKjfcHxV/1791385375160-11zon.jpg"
+}
+
+# --- FUNCIONES DE LIMPIEZA ---
+def limpiar_texto(texto):
+    # Elimina URLs completas
+    texto = re.sub(r'https?://\S+', '', texto)
+    texto = re.sub(r'www\.\S+', '', texto)
+    # Elimina menciones de fuentes al final
+    texto = re.sub(r'\s*[-–]\s*(Meridiano\.net|MLB\.com|ESPN|Facebook|Twitter|Instagram|Globovisión|Radiomiraflores|Líder en deportes)', '', texto, flags=re.IGNORECASE)
+    # Elimina espacios dobles
+    texto = re.sub(r'\s+', ' ', texto).strip()
+    return texto
+
+def normalizar(texto):
+    return re.sub(r'[^a-z0-9]', '', texto.lower())
+
+# --- FUNCIONES DE ENVÍO ---
+def enviar_foto(url_img, texto, logo_respaldo):
+    url = 'https://api.telegram.org/bot' + TOKEN + '/sendPhoto'
+    headers = {'User-Agent': 'Mozilla/5.0'}
     
+    # Intentamos descargar la imagen original
     try:
-        response = requests.get(rss_url, timeout=15)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        items = soup.find_all('item')
-        
-        for item in items[:1]:
-            titulo = item.find('title').get_text(strip=True) if item.find('title') else None
-            if titulo and len(titulo) > 10:
-                content = str(item.find('content')) if item.find('content') else ""
-                img_match = re.search(r'<img[^>]+src="([^">]+)"', content)
-                imagen = img_match.group(1) if img_match else None
-                descripcion = BeautifulSoup(content, 'html.parser').get_text(strip=True)[:300]
-                
-                titulo_limpio = limpiar_texto(titulo)
-                desc_limpio = limpiar_texto(descripcion)
-                
-                noticias.append({
-                    'titulo': titulo_limpio,
-                    'descripcion': desc_limpio,
-                    'imagen_original': imagen,
-                    'equipo_detectado': equipo
-                })
-    except Exception as e:
-        print("Error con " + equipo + ": " + str(e))
+        img_data = requests.get(url_img, headers=headers, timeout=10).content
+        files = {'photo': ('img.jpg', img_data, 'image/jpeg')}
+        data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML', 'disable_web_page_preview': True}
+        r = requests.post(url, files=files, data=data, timeout=20)
+        if r.status_code == 200:
+            return True
+    except:
+        pass # Si falla, caemos al respaldo
+
+    # Si la imagen original falló, enviamos el logo del equipo
+    try:
+        img_data = requests.get(logo_respaldo, headers=headers, timeout=10).content
+        files = {'photo': ('logo.jpg', img_data, 'image/jpeg')}
+        data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML', 'disable_web_page_preview': True}
+        requests.post(url, files=files, data=data, timeout=20)
+        return True
+    except:
+        return False
+
+def enviar_texto(texto):
+    url = 'https://api.telegram.org/bot' + TOKEN + '/sendMessage'
+    requests.post(url, data={'chat_id': CHANNEL, 'text': texto, 'parse_mode': 'HTML', 'disable_web_page_preview': True}, timeout=15)
+
+# --- DETECCIÓN DE EQUIPO ---
+def detectar_equipo(titulo):
+    titulo_lower = titulo.lower()
+    equipos_detectados = []
+    for equipo, keywords in EQUIPOS_KEYWORDS.items():
+        if any(kw in titulo_lower for kw in keywords):
+            equipos_detectados.append(equipo)
     
+    if len(equipos_detectados) == 1:
+        return equipos_detectados[0]
+    return 'general'
+
+# --- FUENTE 1: LVBP.COM ---
+def buscar_en_lvbp():
+    print("📰 Buscando en LVBP.com...")
+    noticias = []
+    try:
+        response = requests.get('https://www.lvbp.com/noticias/', timeout=15)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        articulos = soup.find_all(['article', 'div'], class_=re.compile('post|article|news', re.I))
+        for art in articulos[:10]:
+            titulo_tag = art.find(['h2', 'h3', 'h4', 'a'])
+            if titulo_tag:
+                titulo = limpiar_texto(titulo_tag.get_text(strip=True))
+                if len(titulo) > 15:
+                    desc_tag = art.find('p')
+                    desc = limpiar_texto(desc_tag.get_text(strip=True)[:200]) if desc_tag else ""
+                    img_tag = art.find('img')
+                    img = img_tag.get('src') if img_tag else None
+                    if img and not img.startswith('http'):
+                        img = 'https://www.lvbp.com' + img
+                    noticias.append({'titulo': titulo, 'desc': desc, 'img': img})
+    except Exception as e:
+        print("Error LVBP: " + str(e))
     return noticias
 
+# --- FUENTE 2: GOOGLE NEWS ---
+def buscar_en_google():
+    print("📰 Buscando en Google News...")
+    noticias = []
+    for equipo, keywords in EQUIPOS_KEYWORDS.items():
+        try:
+            query = keywords[0] + " beisbol"
+            url = "https://news.google.com/rss/search?q=" + query + "&hl=es&gl=VE&ceid=VE:es"
+            response = requests.get(url, timeout=15)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            for item in soup.find_all('item')[:1]: # 1 noticia por equipo
+                titulo = item.find('title').get_text(strip=True) if item.find('title') else ""
+                if len(titulo) > 15:
+                    content = str(item.find('content')) if item.find('content') else ""
+                    img_match = re.search(r'<img[^>]+src="([^">]+)"', content)
+                    img = img_match.group(1) if img_match else None
+                    desc = limpiar_texto(BeautifulSoup(content, 'html.parser').get_text(strip=True)[:200])
+                    noticias.append({'titulo': limpiar_texto(titulo), 'desc': desc, 'img': img})
+        except:
+            continue
+    return noticias
+
+# --- CALENDARIO ---
 def publicar_calendario():
-    print("Publicando calendario...")
-    import datetime
-    hoy = datetime.date.today().isoformat()
-    semana_actual = None
+    hoy = datetime.now().strftime('%Y-%m-%d')
+    semana = None
     for fecha in sorted(CALENDARIO_SEMANAS.keys()):
         if fecha <= hoy:
-            semana_actual = fecha
-        else:
-            break
-    if semana_actual:
-        link = CALENDARIO_SEMANAS[semana_actual]
-        texto = " <b>CALENDARIO LVBP - SEMANA DEL " + semana_actual + "</b>\n\n🏟️ Todos los juegos de la semana\n\n⚾ Temporada 2026-2027"
-        enviar_foto(link, texto)
-        print("Calendario publicado")
-    else:
-        print("No hay calendario para esta fecha")
+            semana = fecha
+    if semana:
+        texto = "📅 <b>CALENDARIO LVBP - SEMANA DEL " + semana + "</b>\n\n🏟️ Todos los juegos de la semana\n\n⚾ Temporada 2026-2027"
+        enviar_foto(CALENDARIO_SEMANAS[semana], texto, LOGOS['general'])
 
+# --- EJECUCIÓN PRINCIPAL ---
 def main():
-    print("Iniciando bot LVBP...")
-    todas_las_noticias = []
+    print(" Iniciando Bot Maestro...")
     
-    for equipo, keywords in EQUIPOS_KEYWORDS.items():
-        noticias = obtener_noticias_por_equipo(equipo, keywords)
-        if noticias:
-            todas_las_noticias.append(noticias[0])
+    # 1. Obtener noticias de ambas fuentes
+    todas = buscar_en_lvbp() + buscar_en_google()
     
-    for noticia in todas_las_noticias:
-        equipo = detectar_equipo(noticia['titulo'])
+    # 2. Filtrar duplicados y asegurar 1 por equipo
+    finales = []
+    vistos = set()
+    equipos_cubiertos = set()
+    
+    for n in todas:
+        norm = normalizar(n['titulo'])
+        equipo = detectar_equipo(n['titulo'])
+        
+        # No repetir texto y asegurar que no tengamos ya 2 del mismo equipo
+        if norm not in vistos and norm not in equipos_cubiertos:
+            vistos.add(norm)
+            equipos_cubiertos.add(equipo)
+            n['equipo'] = equipo
+            finales.append(n)
+            
+            if len(finales) >= 8:
+                break
+                
+    print("✅ Noticias únicas a publicar: " + str(len(finales)))
+    
+    # 3. Publicar
+    for n in finales:
+        equipo = n['equipo']
         logo = LOGOS.get(equipo, LOGOS['general'])
-        imagen_final = noticia['imagen_original'] if noticia['imagen_original'] else logo
+        texto = "⚾ <b>" + n['titulo'] + "</b>\n\n" + n['desc']
         
-        texto = "🦈 <b>" + noticia['titulo'] + "</b>\n\n" + noticia['descripcion']
+        if n['img']:
+            enviar_foto(n['img'], texto, logo)
+        else:
+            enviar_foto(logo, texto, logo)
+            
+        print("Publicada: " + n['titulo'][:40])
         
-        if not enviar_foto(imagen_final, texto):
-            enviar_texto(texto)
-        print("Publicada: " + noticia['titulo'][:50])
-    
+    # 4. Publicar calendario
     publicar_calendario()
-    print("Proceso terminado. Total noticias: " + str(len(todas_las_noticias)))
+    print("🏁 Proceso terminado.")
 
 if __name__ == '__main__':
     main()
