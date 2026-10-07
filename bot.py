@@ -11,9 +11,9 @@ CHANNEL = '@LVBPAlDia'
 # Logo de los Tiburones
 LOGO_TIBURONES = "https://i.postimg.cc/J7Hm024y/image-search-1791382706892.png"
 
-# Calendario semanal - Agrega aquí los links de cada semana
+# Calendario semanal
 CALENDARIO_SEMANAS = {
-    "2026-10-12": "AQUI_PEGA_EL_LINK_DE_LA_SEMANA_1",
+    "2026-10-12": "https://i.postimg.cc/FKjfcHxV/1791385375160-11zon.jpg",
     "2026-10-19": "AQUI_PEGA_EL_LINK_DE_LA_SEMANA_2",
     "2026-10-26": "AQUI_PEGA_EL_LINK_DE_LA_SEMANA_3",
     "2026-11-02": "AQUI_PEGA_EL_LINK_DE_LA_SEMANA_4",
@@ -74,7 +74,7 @@ def publicar_calendario_semanal():
     
     if semana_a_publicar:
         link = CALENDARIO_SEMANAS[semana_a_publicar]
-        texto = "📅 <b>CALENDARIO TIBURONES - SEMANA DEL " + semana_a_publicar + "</b>\n\n¡Que comience la acción! ⚾"
+        texto = " <b>CALENDARIO TIBURONES - SEMANA DEL " + semana_a_publicar + "</b>\n\n¡Que comience la acción! ⚾"
         enviar_foto(link, texto)
         print("Calendario de la semana " + semana_a_publicar + " publicado")
     else:
