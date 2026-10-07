@@ -11,6 +11,19 @@ CHANNEL = '@LVBPAlDia'
 LOGOS = {
     'tiburones': 'https://i.postimg.cc/J7Hm024y/image-search-1791382706892.png',
     'aguilas': 'https://i.postimg.cc/J4wxQnwX/1791392132263-11zon.jpg',
+import requests
+from bs4 import BeautifulSoup
+import os
+import re
+from datetime import datetime
+
+TOKEN = os.environ.get('BOT_TOKEN')
+CHANNEL = '@LVBPAlDia'
+
+# LOGOS CON NOMBRES COMPLETOS
+LOGOS = {
+    'tiburones': 'https://i.postimg.cc/J7Hm024y/image-search-1791382706892.png',
+    'aguilas': 'https://i.postimg.cc/J4wxQnwX/1791392132263-11zon.jpg',
     'tigres': 'https://i.postimg.cc/0QRG0W3n/1791393470300-11zon.jpg',
     'caribes': 'https://i.postimg.cc/0j685n5D/image-search-1791393733450-11zon.webp',
     'bravos': 'https://i.postimg.cc/PJh5yYdY/1791395148443-11zon.jpg',
@@ -157,6 +170,102 @@ def main():
     
     # CALENDARIO
     hoy = datetime.now().strftime('%Y-%m-%d')
+    for fecha in sorted(CALENDARIO.keys()):
+        if fecha <= hoy:
+            texto = " <b>CALENDARIO LVBP - SEMANA DEL " + fecha + "</b>\n\n⚾ Temporada 2026-2027"
+            enviar_foto(CALENDARIO[fecha], texto, LOGOS['general'])
+            break
+    
+    print("Terminado")
+
+if __name__ == '__main__':
+    main()
+    'tigres': 'https://i.postimg.cc/0QRG0W3n/1791393470300-11zon.jpg',
+    'caribes': 'https://i.postimg.cc/0j685n5D/image-search-1791393733450-11zon.webp',
+    'bravos': 'https://i.postimg.cc/PJh5yYdY/1791395148443-11zon.jpg',
+    'cardenales': 'https://i.postimg.cc/HLpzqP32/image-search-1791395610326-11zon.jpg',
+    'navegantes': 'https://i.postimg.cc/ydNH8j6v/1791396497437-11zon.jpg',
+    'leones': 'https://i.postimg.cc/Kjrw7g8p/image-search-1791396859705.jpg',
+    'general': 'https://i.postimg.cc/T29t9x9M/image-search-1791397173263.jpg'
+}
+
+# NOMBRES COMPLETOS PARA EVITAR CONFUSIÓN
+EQUIPOS = {
+    'tiburones': ['tiburones de la guaira'],
+    'aguilas': ['aguilas del zulia'],
+    'tigres': ['tigres de aragua'],
+    'caribes': ['caribes de anzoategui'],
+    'bravos': ['bravos de margarita'],
+    'cardenales': ['cardenales de lara'],
+    'navegantes': ['navegantes del magallanes'],
+    'leones': ['leones del caracas']
+}
+
+PAGINAS = {
+    'leones': 'https://leones.com/',
+    'navegantes': 'https://magallanesbbc.com.ve/',
+    'tiburones': 'https://www.tiburonesbbc.com/noticias',
+    'aguilas': 'https://aguilas.com/',
+    'tigres': 'https://tigresdearaguabbc.com/',
+    'caribes': 'https://caribesbbc.com/',
+    'cardenales': 'https://cardenalesdelara.com/',
+    'bravos': 'https://bravosdemargarita.com/'
+}
+
+CALENDARIO = {"2026-10-05": "https://i.postimg.cc/FKjfcHxV/1791385375160-11zon.jpg"}
+
+def limpiar(txt):
+    txt = re.sub(r'https?://\S+', '', txt)
+    txt = re.sub(r'www\.\S+', '', txt)
+    txt = re.sub(r'\s*-\s*(Meridiano\.net|MLB\.com|ESPN|Facebook)', '', txt, flags=re.IGNORECASE)
+    return re.sub(r'\s+', ' ', txt).strip()
+
+def enviar_foto(url, texto, logo):
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    try:
+        img = requests.get(url, headers=headers, timeout=10).content
+        files = {'photo': ('i.jpg', img, 'image/jpeg')}
+        data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
+        r = requests.post('https://api.telegram.org/bot' + TOKEN + '/sendPhoto', files=files, data=data, timeout=20)
+        if r.status_code == 200:
+            return True
+    except:
+        pass
+    try:
+        img = requests.get(logo, headers=headers, timeout=10).content
+        files = {'photo': ('logo.jpg', img, 'image/jpeg')}
+        data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
+        requests.post('https://api.telegram.org/bot' + TOKEN + '/sendPhoto', files=files, data=data, timeout=20)
+        return True
+    except:
+        return False
+
+def detectar(titulo):
+    t = titulo.lower()
+    for eq, nombres in EQUIPOS.items():
+        if any(n in t for n in nombres):
+            return eq
+    return 'general'
+
+def main():
+    print("Iniciando bot...")
+    noticias = []
+    vistos = set()
+    
+    # LVBP.COM
+    print("Buscando en LVBP...")
+    try:
+        soup = BeautifulSoup(requests.get('https://www.lvbp.com/noticias/', timeout=15).text, 'html.parser')
+        for art in soup.find_all(['article', 'div'], class_=re.compile('post|news', re.I))[:10]:
+            tag = art.find(['h2', 'h3', 'a'])
+            if tag:
+                tit = limpiar(tag.get_text(strip=True))
+                if len(tit) > 15:
+                    desc = limpiar(art.find('p').get_text(strip=True)[:200]) if art.find('p') else ""
+                    img = art.find('img')
+                    img_url = img.get('src') if img else None
+                    noticias.append({'titulo': tit, 'desc': desc, 'img': img_url, 'eq': detectar(tit)})
+   hoy = datetime.now().strftime('%Y-%m-%d')
     for fecha in sorted(CALENDARIO.keys()):
         if fecha <= hoy:
             texto = " <b>CALENDARIO LVBP - SEMANA DEL " + fecha + "</b>\n\n⚾ Temporada 2026-2027"
