@@ -25,13 +25,30 @@ def enviar_foto(url_imagen, texto):
         imagen = requests.get(url_imagen).content
         files = {'photo': ('imagen.jpg', imagen, 'image/jpeg')}
         data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
+import requests
+from playwright.sync_api import sync_playwright
+from bs4 import BeautifulSoup
+import os
+import datetime
+
+TOKEN = os.environ.get('BOT_TOKEN')
+CHANNEL = '@LVBPAlDia'
+
+LOGO_TIBURONES = "https://i.postimg.cc/J7Hm024y/image-search-1791382706892.png"
+
+def enviar_foto(url_imagen, texto):
+    url = 'https://api.telegram.org/bot' + TOKEN + '/sendPhoto'
+    try:
+        imagen = requests.get(url_imagen, timeout=10).content
+        files = {'photo': ('imagen.jpg', imagen, 'image/jpeg')}
+        data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
         r = requests.post(url, files=files, data=data, timeout=20)
-        print("Enviado: " + str(r.status_code))
+        print("✅ Foto enviada a Telegram: " + str(r.status_code))
     except Exception as e:
-        print("Error: " + str(e))
+        print("❌ Error enviando foto: " + str(e))
 
 def enviar_noticias_con_logo():
-    print("Buscando noticias...")
+    print("🔍 MODO DETECTIVE: Entrando a la web de noticias...")
     total = 0
     
     with sync_playwright() as p:
@@ -42,57 +59,55 @@ def enviar_noticias_con_logo():
         html = page.content()
         browser.close()
     
-    soup = BeautifulSoup(html, 'html.parser')
-    articles = soup.find_all('article')
-    if len(articles) == 0:
-        articles = soup.find_all('div')
+    # 1. Verificar si la página cargó
+    print("📏 Tamaño del código HTML descargado: " + str(len(html)) + " caracteres")
     
-    for art in articles[:3]:
-        titulo_tag = art.find(['h1', 'h2', 'h3'])
-        titulo = titulo_tag.get_text(strip=True) if titulo_tag else None
-        p_tag = art.find('p')
-        resumen = p_tag.get_text(strip=True)[:250] if p_tag else ""
-        
-        if titulo and len(titulo) > 10:
-            texto = "🦈 <b>TIBURONES DE LA GUAIRA</b>\n\n<b>" + titulo + "</b>\n\n" + resumen + "\n\n🔗 Fuente: tiburonesbbc.com"
-            enviar_foto(LOGO_TIBURONES, texto)
-            total += 1
+    soup = BeautifulSoup(html, 'html.parser')
+    
+    # 2. Buscar TODOS los posibles títulos
+    posibles_titulos = soup.find_all(['h1', 'h2', 'h3', 'h4', 'a', 'span'])
+    titulos_encontrados = []
+    for t in posibles_titulos:
+        texto = t.get_text(strip=True)
+        if len(texto) > 15 and len(texto) < 100: # Filtramos textos muy cortos o muy largos
+            titulos_encontrados.append(texto)
+    
+    # Eliminamos duplicados
+    titulos_unicos = list(dict.fromkeys(titulos_encontrados))[:5] # Solo los primeros 5
+    
+    print("📰 TÍTULOS QUE EL BOT PUDO LEER:")
+    for i, titulo in enumerate(titulos_unicos):
+        print(f"   {i+1}. {titulo}")
+    
+    if len(titulos_unicos) == 0:
+        print("⚠️ ADVERTENCIA: El bot NO encontró ningún título. La página podría estar bloqueando al robot o usando una estructura muy rara.")
+        return 0
+
+    # 3. Intentar publicar el primero que encontremos
+    if len(titulos_unicos) > 0:
+        mejor_titulo = titulos_unicos[0]
+        texto_publicar = "🦈 <b>TIBURONES DE LA GUAIRA</b>\n\n<b>" + mejor_titulo + "</b>\n\n🔗 Fuente: tiburonesbbc.com"
+        print("📤 Intentando publicar: " + mejor_titulo)
+        enviar_foto(LOGO_TIBURONES, texto_publicar)
+        total += 1
     
     return total
 
-def publicar_calendario_semanal():
-    print("Buscando calendario de la semana...")
-    
-    hoy = datetime.date.today().isoformat()
-    semana_a_publicar = None
-    
-    for fecha in sorted(CALENDARIO_SEMANAS.keys()):
-        if fecha <= hoy:
-            semana_a_publicar = fecha
-        else:
-            break
-    
-    if semana_a_publicar:
-        link = CALENDARIO_SEMANAS[semana_a_publicar]
-        texto = " <b>CALENDARIO TIBURONES - SEMANA DEL " + semana_a_publicar + "</b>\n\n¡Que comience la acción! ⚾"
-        enviar_foto(link, texto)
-        print("Calendario de la semana " + semana_a_publicar + " publicado")
-    else:
-        print("No hay calendario para esta fecha")
-
 def main():
-    print("Iniciando bot...")
+    print("🤖 Iniciando bot...")
     total = 0
     
-    # 1. Publicar noticias con logo
+    # 1. Noticias
     noticias = enviar_noticias_con_logo()
     total += noticias
     
-    # 2. Publicar calendario de la semana
-    publicar_calendario_semanal()
+    # 2. Calendario (Forzamos la imagen que ya probamos)
+    link_calendario = "https://i.postimg.cc/FKjfcHxV/1791385375160-11zon.jpg"
+    texto_cal = "📅 <b>CALENDARIO TIBURONES - OCTUBRE 2026</b>\n\nSemana 1: 12-16 de octubre\n\n¡Que comience la temporada! ⚾"
+    enviar_foto(link_calendario, texto_cal)
     total += 1
     
-    print("Total publicaciones: " + str(total))
+    print("🏁 Proceso terminado. Total publicaciones: " + str(total))
 
 if __name__ == '__main__':
     main()
