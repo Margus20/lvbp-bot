@@ -72,8 +72,6 @@ jobs:
             'bravos': 'https://bravosdemargarita.com/'
         }
 
-        CALENDARIO = {"2026-10-05": "https://i.postimg.cc/FKjfcHxV/1791385375160-11zon.jpg"}
-
         def limpiar(txt):
             txt = re.sub(r'https?://\S+', '', txt)
             txt = re.sub(r'www\.\S+', '', txt)
@@ -178,13 +176,6 @@ jobs:
                 else:
                     enviar_foto(logo, texto, logo)
                 print("Publicada: " + n['titulo'][:40])
-            
-            hoy = datetime.now().strftime('%Y-%m-%d')
-            for fecha in sorted(CALENDARIO.keys()):
-                if fecha <= hoy:
-                    texto = "📅 <b>CALENDARIO LVBP - SEMANA DEL " + fecha + "</b>\n\n Temporada 2026-2027"
-                    enviar_foto(CALENDARIO[fecha], texto, LOGOS['general'])
-                    break
             
             print("Terminado")
 
