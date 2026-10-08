@@ -1,0 +1,165 @@
+import os
+import re
+import time
+from urllib.parse import urljoin
+import requests
+from bs4 import BeautifulSoup
+
+TOKEN = os.environ.get('BOT_TOKEN')
+CHANNEL = '@LVBPAlDia'
+VISTOS_FILE = 'vistos.txt'
+
+LOGOS = {
+    'tiburones': 'https://i.postimg.cc/J7Hm024y/image-search-1791382706892.png',
+    'aguilas': 'https://i.postimg.cc/J4wxQnwX/1791392132263-11zon.jpg',
+    'tigres': 'https://i.postimg.cc/0QRG0W3n/1791393470300-11zon.jpg',
+    'caribes': 'https://i.postimg.cc/0j685n5D/image-search-1791393733450-11zon.webp',
+    'bravos': 'https://i.postimg.cc/PJh5yYdY/1791395148443-11zon.jpg',
+    'cardenales': 'https://i.postimg.cc/HLpzqP32/image-search-1791395610326-11zon.jpg',
+    'navegantes': 'https://i.postimg.cc/ydNH8j6v/1791396497437-11zon.jpg',
+    'leones': 'https://i.postimg.cc/Kjrw7g8p/image-search-1791396859705.jpg',
+    'general': 'https://i.postimg.cc/T29t9x9M/image-search-1791397173263.jpg'
+}
+
+EQUIPOS = {
+    'tiburones': ['tiburones de la guaira'],
+    'aguilas': ['aguilas del zulia'],
+    'tigres': ['tigres de aragua'],
+    'caribes': ['caribes de anzoategui'],
+    'bravos': ['bravos de margarita'],
+    'cardenales': ['cardenales de lara'],
+    'navegantes': ['navegantes del magallanes'],
+    'leones': ['leones del caracas']
+}
+
+PAGINAS = {
+    'leones': 'https://leones.com/',
+    'navegantes': 'https://magallanesbbc.com.ve/',
+    'tiburones': 'https://www.tiburonesbbc.com/noticias',
+    'aguilas': 'https://aguilas.com/',
+    'tigres': 'https://tigresdearaguabbc.com/',
+    'caribes': 'https://caribesbbc.com/',
+    'cardenales': 'https://cardenalesdelara.com/',
+    'bravos': 'https://bravosdemargarita.com/'
+}
+
+def limpiar(txt):
+    txt = re.sub(r'https?://\S+', '', txt)
+    txt = re.sub(r'www\.\S+', '', txt)
+    txt = re.sub(r'\s*-\s*(Meridiano\.net|MLB\.com|ESPN|Facebook)', '', txt, flags=re.IGNORECASE)
+    return re.sub(r'\s+', ' ', txt).strip()
+
+def cargar_vistos():
+    if os.path.exists(VISTOS_FILE):
+        with open(VISTOS_FILE, 'r', encoding='utf-8') as f:
+            return set(line.strip() for line in f if line.strip())
+    return set()
+
+def guardar_visto(norm):
+    with open(VISTOS_FILE, 'a', encoding='utf-8') as f:
+        f.write(norm + '\n')
+
+def enviar_foto(url, texto, logo):
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    if url and url.startswith('http'):
+        try:
+            img = requests.get(url, headers=headers, timeout=10).content
+            files = {'photo': ('i.jpg', img, 'image/jpeg')}
+            data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
+            r = requests.post(f'https://api.telegram.org/bot{TOKEN}/sendPhoto', files=files, data=data, timeout=20)
+            if r.status_code == 200:
+                return True
+        except Exception:
+            pass
+
+    try:
+        img = requests.get(logo, headers=headers, timeout=10).content
+        files = {'photo': ('logo.jpg', img, 'image/jpeg')}
+        data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
+        requests.post(f'https://api.telegram.org/bot{TOKEN}/sendPhoto', files=files, data=data, timeout=20)
+        return True
+    except Exception:
+        return False
+
+def detectar(titulo):
+    t = titulo.lower()
+    for eq, nombres in EQUIPOS.items():
+        if any(n in t for n in nombres):
+            return eq
+    return 'general'
+
+def main():
+    print("Iniciando bot...")
+    noticias = []
+    vistos = cargar_vistos()
+    
+    print("Buscando en LVBP...")
+    try:
+        soup = BeautifulSoup(requests.get('https://www.lvbp.com/noticias/', timeout=15).text, 'html.parser')
+        for art in soup.find_all(['article', 'div'], class_=re.compile('post|news', re.I))[:10]:
+            tag = art.find(['h2', 'h3', 'a'])
+            if tag:
+                tit = limpiar(tag.get_text(strip=True))
+                if len(tit) > 15:
+                    desc = limpiar(art.find('p').get_text(strip=True)[:200]) if art.find('p') else ""
+                    img = art.find('img')
+                    img_url = urljoin('https://www.lvbp.com', img.get('src')) if img and img.get('src') else None
+                    noticias.append({'titulo': tit, 'desc': desc, 'img': img_url, 'eq': detectar(tit)})
+    except Exception as e:
+        print("Error LVBP: " + str(e))
+    
+    print("Buscando en Google...")
+    for eq, nombres in EQUIPOS.items():
+        try:
+            url = "https://news.google.com/rss/search?q=" + nombres[0] + " beisbol&hl=es&gl=VE&ceid=VE:es"
+            soup = BeautifulSoup(requests.get(url, timeout=15).text, 'html.parser')
+            for item in soup.find_all('item')[:2]:
+                tit = limpiar(item.find('title').get_text(strip=True))
+                if len(tit) > 15:
+                    content = str(item.find('content')) if item.find('content') else ""
+                    img_match = re.search(r'<img[^>]+src="([^">]+)"', content)
+                    img = img_match.group(1) if img_match else None
+                    desc = limpiar(BeautifulSoup(content, 'html.parser').get_text(strip=True)[:200])
+                    noticias.append({'titulo': tit, 'desc': desc, 'img': img, 'eq': eq})
+        except Exception:
+            continue
+    
+    print("Buscando en páginas de equipos...")
+    for eq, url_base in PAGINAS.items():
+        try:
+            soup = BeautifulSoup(requests.get(url_base, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10).text, 'html.parser')
+            for art in soup.find_all(['article', 'div'], class_=re.compile('post|news', re.I))[:3]:
+                tag = art.find(['h2', 'h3', 'a'])
+                if tag:
+                    tit = limpiar(tag.get_text(strip=True))
+                    if len(tit) > 15:
+                        desc = limpiar(art.find('p').get_text(strip=True)[:200]) if art.find('p') else ""
+                        img = art.find('img')
+                        img_url = urljoin(url_base, img.get('src') or img.get('data-src')) if img and (img.get('src') or img.get('data-src')) else None
+                        noticias.append({'titulo': tit, 'desc': desc, 'img': img_url, 'eq': eq})
+        except Exception as e:
+            print("Error " + eq + ": " + str(e))
+    
+    finales = []
+    for n in noticias:
+        norm = re.sub(r'[^a-z0-9]', '', n['titulo'].lower())
+        if norm not in vistos and len(norm) > 15:
+            vistos.add(norm)
+            finales.append((norm, n))
+            if len(finales) >= 5:
+                break
+    
+    print("Noticias nuevas a publicar: " + str(len(finales)))
+    
+    for norm, n in finales:
+        logo = LOGOS.get(n['eq'], LOGOS['general'])
+        texto = "⚾ <b>" + n['titulo'] + "</b>\n\n" + n['desc']
+        if enviar_foto(n['img'], texto, logo):
+            guardar_visto(norm)
+            print("Publicada: " + n['titulo'][:40])
+            time.sleep(3)
+    
+    print("Terminado")
+
+if __name__ == '__main__':
+    main()  
