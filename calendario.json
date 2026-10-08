@@ -1,0 +1,16 @@
+{
+  "temporada": "2026-2027",
+  "calendario": [
+    {
+      "semana": 1,
+      "fecha_inicio": "2026-10-05",
+      "fecha_fin": "2026-10-11",
+      "imagen": "https://i.postimg.cc/FKjfcHxV/1791385375160-11zon.jpg",
+      "titulo": "CALENDARIO LVBP - SEMANA 1",
+      "descripcion": "Todos los juegos de la semana",
+      "activo": true
+    }
+  ],
+  "eventos_especiales": [],
+  "promociones": []
+}
