@@ -170,7 +170,7 @@ jobs:
             
             for n in finales:
                 logo = LOGOS.get(n['eq'], LOGOS['general'])
-                texto = "⚾ <b>" + n['titulo'] + "</b>\n\n" + n['desc']
+                texto = "<b>" + n['titulo'] + "</b>\n\n" + n['desc']
                 if n['img']:
                     enviar_foto(n['img'], texto, logo)
                 else:
