@@ -1,0 +1,77 @@
+name: Publicar calendario LVBP
+
+on:
+  schedule:
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  publicar-calendario:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Clonar repositorio
+      uses: actions/checkout@v3
+      
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Instalar dependencias
+      run: pip install requests
+      
+    - name: Publicar calendario
+      env:
+        BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      run: |
+        python << 'PYEOF'
+        import requests
+        import json
+        from datetime import datetime
+
+        TOKEN = '${{ secrets.BOT_TOKEN }}'
+        CHANNEL = '@LVBPAlDia'
+
+        LOGO_GENERAL = 'https://i.postimg.cc/T29t9x9M/image-search-1791397173263.jpg'
+
+        def enviar_foto(url, texto, logo):
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            try:
+                img = requests.get(url, headers=headers, timeout=10).content
+                files = {'photo': ('i.jpg', img, 'image/jpeg')}
+                data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
+                r = requests.post('https://api.telegram.org/bot' + TOKEN + '/sendPhoto', files=files, data=data, timeout=20)
+                if r.status_code == 200:
+                    return True
+            except:
+                pass
+            try:
+                img = requests.get(logo, headers=headers, timeout=10).content
+                files = {'photo': ('logo.jpg', img, 'image/jpeg')}
+                data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
+                requests.post('https://api.telegram.org/bot' + TOKEN + '/sendPhoto', files=files, data=data, timeout=20)
+                return True
+            except:
+                return False
+
+        print("Leyendo calendario.json...")
+        with open('calendario.json', 'r', encoding='utf-8') as f:
+            datos = json.load(f)
+
+        hoy = datetime.now().strftime('%Y-%m-%d')
+        calendario_activo = None
+
+        for cal in datos.get('calendario', []):
+            if cal.get('activo', False) and cal.get('fecha_inicio', '') <= hoy:
+                calendario_activo = cal
+
+        if calendario_activo:
+            texto_cal = "📅 <b>" + calendario_activo['titulo'] + "</b>\n\n" + calendario_activo.get('descripcion', '') + "\n\n🏟️ Temporada " + datos.get('temporada', 'Actual')
+            enviar_foto(calendario_activo['imagen'], texto_cal, LOGO_GENERAL)
+            print("Calendario publicado: " + calendario_activo['titulo'])
+        else:
+            print("No hay calendario activo para hoy.")
+
+        print("Terminado")
+        PYEOF
