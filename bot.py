@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
 TOKEN = os.environ.get('BOT_TOKEN')
-CHANNEL = '@LVBPaIDia'
+CHANNEL = '@LVBpalDia'
 VISTOS_FILE = 'vistos.txt'
 CALENDARIO_FILE = 'calendario.json'
 
