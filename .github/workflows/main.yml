@@ -2,10 +2,10 @@ name: Publicar noticias LVBP
 
 on:
   schedule:
-    - cron: '0 12 * * *'
-    - cron: '0 17 * * *'
-    - cron: '0 21 * * *'
-    - cron: '0 6 * * *'
+    - cron: '0 12 * * *'  # 12:00 UTC (8:00 AM Venezuela)
+    - cron: '0 17 * * *'  # 17:00 UTC (1:00 PM Venezuela)
+    - cron: '0 21 * * *'  # 21:00 UTC (5:00 PM Venezuela)
+    - cron: '0 6 * * *'   # 06:00 UTC (2:00 AM Venezuela)
   workflow_dispatch:
 
 permissions:
@@ -26,13 +26,13 @@ jobs:
         
     - name: Instalar dependencias
       run: |
-        pip install requests beautifulsoup4
-      
+        pip install requests beautifulsoup4 lxml
+        
     - name: Ejecutar bot
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
       run: python bot.py
-
+      
     - name: Guardar historial de noticias
       run: |
         git config --global user.name "github-actions[bot]"
