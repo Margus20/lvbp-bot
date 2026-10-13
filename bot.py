@@ -255,20 +255,20 @@ def main():
     
     print(f"✅ Nuevas: {len(finales)}")
     
-    # Publicar TODAS con enlaces y logos
-    for norm, n in finales:
-if n['tipo'] == 'youtube':
-    texto = f"📺 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n🔗 {n['enlace']}"
-elif n['tipo'] == 'externa':
-    texto = f"📰 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n📌 Fuente: {n.get('fuente', 'LVBP')}\n🔗 {n['enlace']}"
-else:
-    texto = f"⚾ <b>{n['titulo']}</b>\n\n{n['desc']}\n\n {n['enlace']}"
+# Publicar TODAS con enlaces y logos
+        for norm, n in finales:
+            if n['tipo'] == 'youtube':
+                texto = f"📺 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n🔗 {n['enlace']}"
+            elif n['tipo'] == 'externa':
+                texto = f"📰 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n Fuente: {n.get('fuente', 'LVBP')}\n🔗 {n['enlace']}"
+            else:
+                texto = f"⚾ <b>{n['titulo']}</b>\n\n{n['desc']}\n\n🔗 {n['enlace']}"
 
-logo_key = n.get('logo', 'general')
-if enviar_con_logo(logo_key, texto, n.get('img')):
-            guardar_visto(norm)
-            print(f"  ✅ {n['titulo'][:40]}")
-            time.sleep(2)
+            logo_key = n.get('logo', 'general')
+            if enviar_con_logo(logo_key, texto, n.get('img')):
+                guardar_visto(norm)
+                print(f"  ✅ {n['titulo'][:40]}")
+                time.sleep(2)
     
     # Jornada
     print("📅 Jornada...")
