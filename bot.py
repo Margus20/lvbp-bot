@@ -257,12 +257,15 @@ def main():
     
     # Publicar TODAS con enlaces y logos
     for norm, n in finales:
-        if n['tipo'] == 'youtube':
-            texto = f"📺 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n🔗 {n['enlace']}"
-        else:
-            texto = f"⚾ <b>{n['titulo']}</b>\n\n{n['desc']}\n\n🔗 {n['enlace']}"
-        
-        if enviar_con_logo(n['logo'], texto, n.get('img')):
+if n['tipo'] == 'youtube':
+    texto = f"📺 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n🔗 {n['enlace']}"
+elif n['tipo'] == 'externa':
+    texto = f"📰 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n📌 Fuente: {n.get('fuente', 'LVBP')}\n🔗 {n['enlace']}"
+else:
+    texto = f"⚾ <b>{n['titulo']}</b>\n\n{n['desc']}\n\n {n['enlace']}"
+
+logo_key = n.get('logo', 'general')
+if enviar_con_logo(logo_key, texto, n.get('img')):
             guardar_visto(norm)
             print(f"  ✅ {n['titulo'][:40]}")
             time.sleep(2)
