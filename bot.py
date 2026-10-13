@@ -4,6 +4,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from datetime import datetime
 from resumen_lvbp import obtener_noticias_externas
+from estadisticas import obtener_tabla_posiciones, obtener_resultados_recientes
 
 TOKEN = os.environ.get('BOT_TOKEN')
 CHANNEL = '@LVBpalDia'
@@ -208,29 +209,13 @@ def obtener_jornada():
         print(f"  ⚠️ Error calendario: {e}")
     return None
 
-def obtener_posiciones():
-    try:
-        resp = requests.get('https://www.lvbp.com/posiciones/', headers=HEADERS, timeout=15)
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        tabla = soup.find('table', class_=re.compile('standings|tabla|posiciones', re.I))
-        if tabla:
-            pos = []
-            for fila in tabla.find_all('tr')[1:6]:
-                cols = fila.find_all('td')
-                if len(cols) >= 3:
-                    pos.append(f"{cols[1].get_text(strip=True)}: {cols[2].get_text(strip=True)}G-{cols[3].get_text(strip=True) if len(cols)>3 else '0'}P")
-            return pos
-    except Exception as e:
-        print(f"  ️ Error posiciones: {e}")
-    return None
-
 def main():
     print("⚾ Iniciando bot LVBP completo...")
     vistos = cargar_vistos()
     todas = []
 
     # 1. Páginas web oficiales (9 fuentes)
-    print("🌐 Páginas web...")
+    print(" Páginas web...")
     for eq, datos in PAGINAS.items():
         print(f"  - {eq} ({datos['url']})")
         todas.extend(obtener_noticias_web(eq, datos['url'], datos['logo']))
@@ -260,11 +245,11 @@ def main():
     # Publicar TODAS con enlaces y logos (SIN LÍMITE)
     for norm, n in finales:
         if n['tipo'] == 'youtube':
-            texto = f"📺 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n {n['enlace']}"
+            texto = f"📺 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n🔗 {n['enlace']}"
         elif n['tipo'] == 'externa':
-            texto = f"📰 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n Fuente: {n.get('fuente', 'LVBP')}\n🔗 {n['enlace']}"
+            texto = f"📰 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n📌 Fuente: {n.get('fuente', 'LVBP')}\n🔗 {n['enlace']}"
         else:
-            texto = f"⚾ <b>{n['titulo']}</b>\n\n{n['desc']}\n\n {n['enlace']}"
+            texto = f"⚾ <b>{n['titulo']}</b>\n\n{n['desc']}\n\n🔗 {n['enlace']}"
 
         logo_key = n.get('logo', 'general')
         if enviar_con_logo(logo_key, texto, n.get('img')):
@@ -273,23 +258,30 @@ def main():
             time.sleep(2)
 
     # Jornada de hoy
-    print("📅 Jornada...")
+    print(" Jornada...")
     j = obtener_jornada()
     if j:
-        t = f" <b>{j.get('titulo', 'JORNADA')}</b>\n\n{j.get('descripcion', '')}"
+        t = f"📅 <b>{j.get('titulo', 'JORNADA')}</b>\n\n{j.get('descripcion', '')}"
         if enviar_con_logo('general', t, j.get('imagen')):
             print("  ✅ Jornada publicada")
             time.sleep(2)
 
-    # Posiciones (cada 3 días)
-    if datetime.now().day % 3 == 0:
-        print("🏆 Posiciones...")
-        pos = obtener_posiciones()
-        if pos:
-            t = "🏆 <b>POSICIONES LVBP</b>\n\n" + "\n".join(pos)
-            if enviar_mensaje(t):
-                print("  ✅ Posiciones publicadas")
-                time.sleep(2)
+    # Estadísticas automáticas (Tabla de posiciones y resultados)
+    print("📊 Buscando estadísticas automáticas...")
+    tabla = obtener_tabla_posiciones()
+    if tabla:
+        data = {'chat_id': CHANNEL, 'text': tabla, 'parse_mode': 'HTML'}
+        requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', data=data, timeout=10)
+        print("  ✅ Tabla de posiciones publicada")
+        time.sleep(2)
+    else:
+        # Si falla la tabla oficial, buscamos resumen en noticias
+        resumen = obtener_resultados_recientes()
+        if resumen:
+            data = {'chat_id': CHANNEL, 'text': resumen, 'parse_mode': 'HTML'}
+            requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', data=data, timeout=10)
+            print("  ✅ Resumen de resultados publicado")
+            time.sleep(2)
 
     print("✅ Terminado")
 
