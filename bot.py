@@ -242,7 +242,7 @@ def main():
         todas.extend(obtener_videos_youtube(eq, url))
 
     # Agregar noticias de fuentes externas filtradas
-todas.extend(obtener_noticias_externas())
+    todas.extend(obtener_noticias_externas())
     print(f"📊 Total: {len(todas)}")
     
     # Filtrar nuevas (SIN LÍMITE)
