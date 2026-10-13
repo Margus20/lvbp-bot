@@ -50,7 +50,7 @@ YOUTUBE_URLS = {
     'beisbolplay': 'https://youtube.com/@beisbolplay'
 }
 
-# NOMBRES COMPLETOS PARA DETECTAR EQUIPOS EN TÍTULOS DE YOUTUBE
+# NOMBRES COMPLETOS PARA DETECTAR EQUIPOS (evita confusiones con otros países)
 EQUIPOS_NOMBRES = {
     'tiburones': ['tiburones de la guaira', 'tiburones lvg', 'tiburones de la guaira bbc'],
     'aguilas': ['aguilas del zulia', 'aguilas del zulia bbc', 'aguilas zulia'],
@@ -119,7 +119,7 @@ def enviar_con_logo(logo_key, texto, url_img=None):
         except:
             pass
     
-    # Usar logo del equipo
+    # Usar logo del equipo como respaldo
     try:
         resp = requests.get(logo_url, headers=HEADERS, timeout=10)
         if resp.status_code == 200:
@@ -134,6 +134,11 @@ def enviar_con_logo(logo_key, texto, url_img=None):
     data = {'chat_id': CHANNEL, 'text': texto, 'parse_mode': 'HTML'}
     requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', data=data, timeout=10)
     return True
+
+def enviar_mensaje(texto):
+    data = {'chat_id': CHANNEL, 'text': texto, 'parse_mode': 'HTML'}
+    r = requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', data=data, timeout=10)
+    return r.status_code == 200
 
 def obtener_noticias_web(equipo_key, url_base, logo_key):
     """Obtiene noticias de página web. Logo determinado por la fuente."""
@@ -151,11 +156,9 @@ def obtener_noticias_web(equipo_key, url_base, logo_key):
                         enlace = urljoin(url_base, tag.get('href'))
                     elif art.find('a') and art.find('a').get('href'):
                         enlace = urljoin(url_base, art.find('a').get('href'))
-                    
                     desc = limpiar(art.find('p').get_text(strip=True)[:200]) if art.find('p') else ''
                     img = art.find('img')
                     img_url = urljoin(url_base, img.get('src')) if img and img.get('src') else None
-                    
                     noticias.append({
                         'titulo': tit, 'desc': desc, 'img': img_url, 'enlace': enlace,
                         'logo': logo_key, 'tipo': 'web'
@@ -165,7 +168,7 @@ def obtener_noticias_web(equipo_key, url_base, logo_key):
     return noticias
 
 def obtener_videos_youtube(equipo_key, url_completa):
-    """Obtiene videos de YouTube con miniatura y enlace. Logo por detección de título."""
+    """Obtiene videos de YouTube con miniatura y enlace."""
     videos = []
     cid = obtener_channel_id(url_completa)
     if not cid:
@@ -181,10 +184,7 @@ def obtener_videos_youtube(equipo_key, url_completa):
                 link = entry.find('atom:link', ns).attrib['href']
                 thumb = entry.find('media:group/media:thumbnail', ns)
                 img = thumb.get('url') if thumb is not None else f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
-                
-                # Detectar equipo por título
                 logo = detectar_equipo_youtube(titulo)
-                
                 videos.append({
                     'titulo': titulo, 'desc': 'Ver video completo en YouTube', 'img': img,
                     'enlace': link, 'logo': logo, 'tipo': 'youtube'
@@ -221,30 +221,32 @@ def obtener_posiciones():
                     pos.append(f"{cols[1].get_text(strip=True)}: {cols[2].get_text(strip=True)}G-{cols[3].get_text(strip=True) if len(cols)>3 else '0'}P")
             return pos
     except Exception as e:
-        print(f"  ⚠️ Error posiciones: {e}")
+        print(f"  ️ Error posiciones: {e}")
     return None
 
 def main():
     print("⚾ Iniciando bot LVBP completo...")
     vistos = cargar_vistos()
     todas = []
-    
-    # 1. Páginas web (9 fuentes con logo automático)
+
+    # 1. Páginas web oficiales (9 fuentes)
     print("🌐 Páginas web...")
     for eq, datos in PAGINAS.items():
         print(f"  - {eq} ({datos['url']})")
         todas.extend(obtener_noticias_web(eq, datos['url'], datos['logo']))
-    
-    # 2. YouTube (9 canales con URLs completas)
-    print(" YouTube...")
+
+    # 2. YouTube (9 canales)
+    print("📺 YouTube...")
     for eq, url in YOUTUBE_URLS.items():
         print(f"  - {eq}: {url}")
         todas.extend(obtener_videos_youtube(eq, url))
 
-    # Agregar noticias de fuentes externas filtradas
+    # 3. Fuentes externas de noticias
+    print("📰 Fuentes externas...")
     todas.extend(obtener_noticias_externas())
+
     print(f"📊 Total: {len(todas)}")
-    
+
     # Filtrar nuevas (SIN LÍMITE)
     finales = []
     for n in todas:
@@ -252,44 +254,43 @@ def main():
         if norm not in vistos and len(norm) > 15:
             vistos.add(norm)
             finales.append((norm, n))
-    
-    print(f"✅ Nuevas: {len(finales)}")
-    
-# Publicar TODAS con enlaces y logos
-        for norm, n in finales:
-            if n['tipo'] == 'youtube':
-                texto = f"📺 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n🔗 {n['enlace']}"
-            elif n['tipo'] == 'externa':
-                texto = f"📰 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n Fuente: {n.get('fuente', 'LVBP')}\n🔗 {n['enlace']}"
-            else:
-                texto = f"⚾ <b>{n['titulo']}</b>\n\n{n['desc']}\n\n🔗 {n['enlace']}"
 
-            logo_key = n.get('logo', 'general')
-            if enviar_con_logo(logo_key, texto, n.get('img')):
-                guardar_visto(norm)
-                print(f"  ✅ {n['titulo'][:40]}")
-                time.sleep(2)
-    
-    # Jornada
+    print(f"✅ Nuevas: {len(finales)}")
+
+    # Publicar TODAS con enlaces y logos (SIN LÍMITE)
+    for norm, n in finales:
+        if n['tipo'] == 'youtube':
+            texto = f"📺 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n {n['enlace']}"
+        elif n['tipo'] == 'externa':
+            texto = f"📰 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n Fuente: {n.get('fuente', 'LVBP')}\n🔗 {n['enlace']}"
+        else:
+            texto = f"⚾ <b>{n['titulo']}</b>\n\n{n['desc']}\n\n {n['enlace']}"
+
+        logo_key = n.get('logo', 'general')
+        if enviar_con_logo(logo_key, texto, n.get('img')):
+            guardar_visto(norm)
+            print(f"  ✅ {n['titulo'][:40]}")
+            time.sleep(2)
+
+    # Jornada de hoy
     print("📅 Jornada...")
     j = obtener_jornada()
     if j:
-        t = f"📅 <b>{j.get('titulo', 'JORNADA')}</b>\n\n{j.get('descripcion', '')}"
+        t = f" <b>{j.get('titulo', 'JORNADA')}</b>\n\n{j.get('descripcion', '')}"
         if enviar_con_logo('general', t, j.get('imagen')):
             print("  ✅ Jornada publicada")
             time.sleep(2)
-    
+
     # Posiciones (cada 3 días)
     if datetime.now().day % 3 == 0:
         print("🏆 Posiciones...")
         pos = obtener_posiciones()
         if pos:
             t = "🏆 <b>POSICIONES LVBP</b>\n\n" + "\n".join(pos)
-            data = {'chat_id': CHANNEL, 'text': t, 'parse_mode': 'HTML'}
-            requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', data=data, timeout=10)
-            print("  ✅ Posiciones publicadas")
-            time.sleep(2)
-    
+            if enviar_mensaje(t):
+                print("  ✅ Posiciones publicadas")
+                time.sleep(2)
+
     print("✅ Terminado")
 
 if __name__ == '__main__':
