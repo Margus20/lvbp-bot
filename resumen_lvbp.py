@@ -5,14 +5,14 @@ from urllib.parse import urljoin
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
-# LISTA EXCLUSIVA DE FUENTES (Solo las que tú aprobaste)
+# LISTA EXCLUSIVA DE FUENTES con URLs CORREGIDAS
 FUENTES = [
-    {'nombre': 'El Emergente', 'url': 'https://elemergente.com/category/deportes/'},
+    {'nombre': 'El Emergente', 'url': 'https://elemergente.com/'},
     {'nombre': 'Meridiano', 'url': 'https://meridiano.net/beisbol/beisbol-venezolano/'},
-    {'nombre': 'El Carabobeño', 'url': 'https://www.el-carabobeno.com/category/deportes/'},
+    {'nombre': 'El Carabobeño', 'url': 'https://www.el-carabobeno.com/'},
     {'nombre': 'Primicia', 'url': 'https://primicia.com.ve/deportes/'},
-    {'nombre': 'La Iguana TV', 'url': 'https://www.laiguana.tv/category/deportes/'},
-    {'nombre': 'El Diario', 'url': 'https://eldiario.com/category/deportes/'},
+    {'nombre': 'La Iguana TV', 'url': 'https://www.laiguana.tv/'},
+    {'nombre': 'El Diario', 'url': 'https://eldiario.com/'},
     {'nombre': 'El Estímulo', 'url': 'https://elestimulo.com/deportes/'}
 ]
 
@@ -46,7 +46,7 @@ def obtener_noticias_externas():
             # Buscamos artículos, entradas o tarjetas de noticias (estructura común en WordPress)
             articulos = soup.find_all(['article', 'div'], class_=re.compile(r'post|entry|news|card|item', re.I))
             
-            for art in articulos[:10]: # Revisamos los 10 más recientes de cada fuente
+            for art in articulos[:15]: # Revisamos los 15 más recientes de cada fuente
                 # Buscar título y enlace
                 tag_titulo = art.find(['h2', 'h3', 'h1', 'a'])
                 if not tag_titulo:
