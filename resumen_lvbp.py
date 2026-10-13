@@ -17,7 +17,7 @@ FUENTES = [
 ]
 
 # FILTRO ESTRICTO: La noticia DEBE contener al menos una de estas palabras
-# Usamos los nombres COMPLETOS de los equipos para evitar confusiones
+# Usamos los nombres COMPLETOS de los equipos para evitar confusiones con otros países
 PALABRAS_CLAVE_LVBP = [
     'lvbp', 'liga venezolana de béisbol', 'beisbol venezolano', 'pelota criolla',
     'leones del caracas', 'navegantes del magallanes', 'tiburones de la guaira',
@@ -37,7 +37,7 @@ def es_noticia_lvbp(titulo, desc):
 def obtener_noticias_externas():
     """Scrapea las fuentes aprobadas y devuelve solo noticias filtradas de LVBP."""
     noticias = []
-    print(" Buscando en fuentes externas de LVBP...")
+    print("📰 Buscando en fuentes externas de LVBP...")
     
     for fuente in FUENTES:
         try:
