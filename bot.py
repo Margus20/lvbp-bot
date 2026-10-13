@@ -3,6 +3,7 @@ import xml.etree.ElementTree as ET
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from datetime import datetime
+from resumen_lvbp import obtener_noticias_externas
 
 TOKEN = os.environ.get('BOT_TOKEN')
 CHANNEL = '@LVBpalDia'
