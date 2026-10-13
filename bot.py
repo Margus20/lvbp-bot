@@ -240,7 +240,9 @@ def main():
     for eq, url in YOUTUBE_URLS.items():
         print(f"  - {eq}: {url}")
         todas.extend(obtener_videos_youtube(eq, url))
-    
+
+    # Agregar noticias de fuentes externas filtradas
+todas.extend(obtener_noticias_externas())
     print(f"📊 Total: {len(todas)}")
     
     # Filtrar nuevas (SIN LÍMITE)
