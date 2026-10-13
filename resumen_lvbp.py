@@ -5,7 +5,7 @@ from urllib.parse import urljoin
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
-# LISTA EXCLUSIVA DE FUENTES con URLs CORREGIDAS
+# LISTA EXCLUSIVA DE FUENTES (Solo las que tú aprobaste)
 FUENTES = [
     {'nombre': 'El Emergente', 'url': 'https://elemergente.com/'},
     {'nombre': 'Meridiano', 'url': 'https://meridiano.net/beisbol/beisbol-venezolano/'},
@@ -17,11 +17,13 @@ FUENTES = [
 ]
 
 # FILTRO ESTRICTO: La noticia DEBE contener al menos una de estas palabras
+# Usamos los nombres COMPLETOS de los equipos para evitar confusiones
 PALABRAS_CLAVE_LVBP = [
-    'lvbp', 'liga venezolana', 'beisbol venezolano', 'pelota criolla',
+    'lvbp', 'liga venezolana de béisbol', 'beisbol venezolano', 'pelota criolla',
     'leones del caracas', 'navegantes del magallanes', 'tiburones de la guaira',
     'aguilas del zulia', 'tigres de aragua', 'caribes de anzoategui',
-    'cardenales de lara', 'bravos de margarita'
+    'cardenales de lara', 'bravos de margarita',
+    'temporada 26-27', 'temporada 2026-2027', 'lvbp 2026'
 ]
 
 def limpiar(txt):
@@ -29,15 +31,13 @@ def limpiar(txt):
 
 def es_noticia_lvbp(titulo, desc):
     """Verifica estrictamente que la noticia sea de béisbol venezolano."""
-    # TEMPORAL: Desactivado para diagnóstico. Acepta todo para ver si llegan datos.
-    return True
-    # texto_completo = (titulo + ' ' + desc).lower()
-    # return any(palabra in texto_completo for palabra in PALABRAS_CLAVE_LVBP)
+    texto_completo = (titulo + ' ' + desc).lower()
+    return any(palabra in texto_completo for palabra in PALABRAS_CLAVE_LVBP)
 
 def obtener_noticias_externas():
     """Scrapea las fuentes aprobadas y devuelve solo noticias filtradas de LVBP."""
     noticias = []
-    print("📰 Buscando en fuentes externas de LVBP...")
+    print(" Buscando en fuentes externas de LVBP...")
     
     for fuente in FUENTES:
         try:
@@ -45,11 +45,10 @@ def obtener_noticias_externas():
             resp.raise_for_status()
             soup = BeautifulSoup(resp.text, 'html.parser')
             
-            # Buscamos artículos, entradas o tarjetas de noticias (estructura común en WordPress)
+            # Buscamos artículos, entradas o tarjetas de noticias
             articulos = soup.find_all(['article', 'div'], class_=re.compile(r'post|entry|news|card|item', re.I))
             
-            for art in articulos[:15]: # Revisamos los 15 más recientes de cada fuente
-                # Buscar título y enlace
+            for art in articulos[:15]:
                 tag_titulo = art.find(['h2', 'h3', 'h1', 'a'])
                 if not tag_titulo:
                     continue
@@ -72,7 +71,7 @@ def obtener_noticias_externas():
                 img_tag = art.find('img')
                 img_url = urljoin(fuente['url'], img_tag.get('src')) if img_tag and img_tag.get('src') else None
                 
-                # FILTRO ESTRICTO: Si no es LVBP, se descarta inmediatamente
+                # FILTRO ESTRICTO: Si no es LVBP, se descarta
                 if not es_noticia_lvbp(titulo, desc):
                     continue
                 
