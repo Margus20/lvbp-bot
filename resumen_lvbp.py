@@ -29,8 +29,10 @@ def limpiar(txt):
 
 def es_noticia_lvbp(titulo, desc):
     """Verifica estrictamente que la noticia sea de béisbol venezolano."""
-    texto_completo = (titulo + ' ' + desc).lower()
-    return any(palabra in texto_completo for palabra in PALABRAS_CLAVE_LVBP)
+    # TEMPORAL: Desactivado para diagnóstico. Acepta todo para ver si llegan datos.
+    return True
+    # texto_completo = (titulo + ' ' + desc).lower()
+    # return any(palabra in texto_completo for palabra in PALABRAS_CLAVE_LVBP)
 
 def obtener_noticias_externas():
     """Scrapea las fuentes aprobadas y devuelve solo noticias filtradas de LVBP."""
