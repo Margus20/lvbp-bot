@@ -13,6 +13,14 @@ VISTOS_FILE = 'vistos.txt'
 CALENDARIO_FILE = 'calendario.json'
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
+# PALABRAS PROHIBIDAS (filtro anti-spam)
+PALABRAS_PROHIBIDAS = [
+    'suscríbete', 'suscribete', 'suscribirse', 'boletín', 'boletin', 'newsletter',
+    'política de privacidad', 'politica de privacidad', 'contacto', 'iniciar sesión',
+    'registrarse', 'registro', 'login', 'cookies', 'aviso legal', 'términos y condiciones',
+    'acerca de', 'about', 'mapa del sitio', 'publicidad', 'anúnciate', 'trabaja con nosotros'
+]
+
 # LOGOS DE CADA EQUIPO
 LOGOS = {
     'tiburones': 'https://i.postimg.cc/J7Hm024y/image-search-1791382706892.png',
@@ -26,7 +34,7 @@ LOGOS = {
     'general': 'https://i.postimg.cc/T29t9x9M/image-search-1791397173263.jpg'
 }
 
-# 9 PÁGINAS WEB OFICIALES (con logo automático por fuente)
+# 9 PÁGINAS WEB OFICIALES
 PAGINAS = {
     'lvbp': {'url': 'https://lvbp.com/', 'logo': 'general'},
     'leones': {'url': 'https://leones.com/', 'logo': 'leones'},
@@ -39,7 +47,7 @@ PAGINAS = {
     'bravos': {'url': 'https://bravosdemargarita.com/', 'logo': 'bravos'}
 }
 
-# 9 CANALES DE YOUTUBE CON URLs COMPLETAS
+# 9 CANALES DE YOUTUBE
 YOUTUBE_URLS = {
     'lvbp': 'https://youtube.com/@lvbp_oficial',
     'leones': 'https://youtube.com/@teleleones_cbbc',
@@ -52,7 +60,7 @@ YOUTUBE_URLS = {
     'beisbolplay': 'https://youtube.com/@beisbolplay'
 }
 
-# NOMBRES COMPLETOS PARA DETECTAR EQUIPOS (evita confusiones con otros países)
+# NOMBRES COMPLETOS DE EQUIPOS (evita confusiones con otros países)
 EQUIPOS_NOMBRES = {
     'tiburones': ['tiburones de la guaira', 'tiburones lvg', 'tiburones de la guaira bbc'],
     'aguilas': ['aguilas del zulia', 'aguilas del zulia bbc', 'aguilas zulia'],
@@ -80,7 +88,6 @@ def guardar_visto(norm):
         f.write(norm + '\n')
 
 def detectar_equipo_youtube(titulo):
-    """Detecta equipo por nombre completo en el título del video."""
     t = titulo.lower()
     for eq, nombres in EQUIPOS_NOMBRES.items():
         for nombre in nombres:
@@ -89,7 +96,6 @@ def detectar_equipo_youtube(titulo):
     return 'general'
 
 def obtener_channel_id(url_completa):
-    """Obtiene el channel_id desde la URL completa de YouTube."""
     if url_completa in channel_id_cache:
         return channel_id_cache[url_completa]
     try:
@@ -98,17 +104,14 @@ def obtener_channel_id(url_completa):
         if match:
             cid = match.group(1)
             channel_id_cache[url_completa] = cid
-            print(f"  ✅ {url_completa} -> {cid}")
             return cid
     except Exception as e:
         print(f"  ⚠️ Error con {url_completa}: {e}")
     return None
 
 def enviar_con_logo(logo_key, texto, url_img=None):
-    """Envía foto con lógica infalible: imagen noticia → logo equipo → logo liga → solo texto."""
     logo_url = LOGOS.get(logo_key, LOGOS['general'])
     
-    # Intentar con imagen de la noticia
     if url_img and str(url_img).startswith('http'):
         try:
             resp = requests.get(url_img, headers=HEADERS, timeout=10)
@@ -121,7 +124,6 @@ def enviar_con_logo(logo_key, texto, url_img=None):
         except:
             pass
     
-    # Usar logo del equipo como respaldo
     try:
         resp = requests.get(logo_url, headers=HEADERS, timeout=10)
         if resp.status_code == 200:
@@ -132,7 +134,6 @@ def enviar_con_logo(logo_key, texto, url_img=None):
     except:
         pass
     
-    # Último recurso: solo texto
     data = {'chat_id': CHANNEL, 'text': texto, 'parse_mode': 'HTML'}
     requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', data=data, timeout=10)
     return True
@@ -143,22 +144,37 @@ def enviar_mensaje(texto):
     return r.status_code == 200
 
 def obtener_noticias_web(equipo_key, url_base, logo_key):
-    """Obtiene noticias usando Playwright con domcontentloaded para evadir bloqueos."""
+    """Obtiene noticias usando Playwright con selectores FLEXIBLES."""
     noticias = []
     print(f"  🕵️ Escaneando {equipo_key} con navegador invisible...")
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
-            # CAMBIO CLAVE: domcontentloaded + timeout 45s
             page.goto(url_base, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(2000)
             html = page.content()
             browser.close()
 
         soup = BeautifulSoup(html, 'html.parser')
-        for art in soup.find_all(['article', 'div'], class_=re.compile('post|news|article', re.I))[:15]:
-            tag = art.find(['h2', 'h3', 'a'])
+        
+        # SELECTORES FLEXIBLES: busca en múltiples tipos de contenedores
+        articulos = soup.find_all(
+            ['article', 'div', 'section', 'li', 'main'],
+            class_=re.compile(r'post|news|article|entry|card|item|story|content', re.I)
+        )
+        
+        # Si no encuentra con clases, buscar todos los articles
+        if not articulos:
+            articulos = soup.find_all('article')
+        
+        # Si aún no encuentra, buscar divs con enlaces internos
+        if not articulos:
+            articulos = soup.find_all('div')[:30]
+        
+        for art in articulos[:20]:
+            # Buscar título en múltiples tags
+            tag = art.find(['h1', 'h2', 'h3', 'h4', 'h5', 'a'])
             if tag:
                 tit = limpiar(tag.get_text(strip=True))
                 if len(tit) > 15:
@@ -175,11 +191,10 @@ def obtener_noticias_web(equipo_key, url_base, logo_key):
                         'logo': logo_key, 'tipo': 'web'
                     })
     except Exception as e:
-        print(f"  ️ Error {equipo_key}: {e}")
+        print(f"  ⚠️ Error {equipo_key}: {e}")
     return noticias
 
 def obtener_videos_youtube(equipo_key, url_completa):
-    """Obtiene videos de YouTube con miniatura y enlace."""
     videos = []
     cid = obtener_channel_id(url_completa)
     if not cid:
@@ -205,7 +220,6 @@ def obtener_videos_youtube(equipo_key, url_completa):
     return videos
 
 def obtener_jornada():
-    """Obtiene la jornada del día desde el calendario.json."""
     hoy = datetime.now().strftime('%Y-%m-%d')
     try:
         with open(CALENDARIO_FILE, 'r', encoding='utf-8') as f:
@@ -217,7 +231,7 @@ def obtener_jornada():
             if s.get('activo'):
                 return s
     except Exception as e:
-        print(f"  ⚠️ Error calendario: {e}")
+        print(f"  ️ Error calendario: {e}")
     return None
 
 def main():
@@ -225,7 +239,7 @@ def main():
     vistos = cargar_vistos()
     todas = []
 
-    # 1. Páginas web oficiales (9 fuentes) - CON PLAYWRIGHT
+    # 1. Páginas web oficiales (9 fuentes)
     print("🌐 Páginas web oficiales...")
     for eq, datos in PAGINAS.items():
         print(f"  - {eq} ({datos['url']})")
@@ -237,17 +251,22 @@ def main():
         print(f"  - {eq}: {url}")
         todas.extend(obtener_videos_youtube(eq, url))
 
-    # 3. Fuentes externas de noticias (7 portales) - CON PLAYWRIGHT
-    print(" Fuentes externas...")
+    # 3. Fuentes externas (7 portales)
+    print("📰 Fuentes externas...")
     todas.extend(obtener_noticias_externas())
 
-    print(f" Total: {len(todas)}")
+    print(f"📊 Total: {len(todas)}")
 
-    # Filtrar nuevas (SIN LÍMITE)
+    # Filtrar nuevas (SIN LÍMITE + FILTRO ANTI-SPAM)
     finales = []
     for n in todas:
         norm = re.sub(r'[^a-z0-9]', '', n['titulo'].lower())
-        if norm not in vistos and len(norm) > 15:
+        titulo_lower = n['titulo'].lower()
+        
+        # FILTRO ANTI-SPAM
+        es_basura = any(palabra in titulo_lower for palabra in PALABRAS_PROHIBIDAS)
+        
+        if norm not in vistos and len(norm) > 15 and not es_basura:
             vistos.add(norm)
             finales.append((norm, n))
 
@@ -255,6 +274,7 @@ def main():
 
     # Publicar TODAS con enlaces y logos (SIN LÍMITE)
     for norm, n in finales:
+        # CORRECCIÓN: Emojis correctos para cada tipo
         if n['tipo'] == 'youtube':
             texto = f"📺 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n🔗 {n['enlace']}"
         elif n['tipo'] == 'externa':
@@ -277,8 +297,8 @@ def main():
             print("  ✅ Jornada publicada")
             time.sleep(2)
 
-    # Estadísticas automáticas (Tabla de posiciones y resultados)
-    print(" Buscando estadísticas automáticas...")
+    # Estadísticas automáticas
+    print("📊 Buscando estadísticas automáticas...")
     tabla = obtener_tabla_posiciones()
     if tabla:
         data = {'chat_id': CHANNEL, 'text': tabla, 'parse_mode': 'HTML'}
