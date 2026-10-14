@@ -17,16 +17,41 @@ FUENTES = [
     {'nombre': 'El Estímulo', 'url': 'https://elestimulo.com/deportes/'}
 ]
 
-# 2. FILTRO DE EXCLUSIÓN: OTRAS LIGAS Y OTROS DEPORTES
+# 2. FILTRO DE EXCLUSIÓN REFORZADO (Bloquea fútbol y otros deportes)
 OTRAS_LIGAS_Y_DEPORTES = [
+    # Fútbol - Competencias Internacionales
+    'copa libertadores', 'libertadores', 'copa sudamericana', 'sudamericana',
+    'champions league', 'europa league', 'conference league',
+    'liga de campeones', 'liga europa',
+    
+    # Fútbol - Equipos Internacionales
+    'real madrid', 'barcelona', 'messi', 'ronaldo', 'neymar', 'mbappe',
+    'manchester', 'liverpool', 'bayern', 'psg', 'juventus', 'milan', 'inter',
+    'chelsea', 'arsenal', 'tottenham', 'city', 'united',
+    
+    # Fútbol - Ligas
+    'premier league', 'la liga', 'serie a', 'bundesliga', 'ligue 1',
+    'liga española', 'liga inglesa', 'liga italiana', 'liga alemana',
+    
+    # Fútbol Venezolano y Mundial
+    'vinotinto', 'fútbol', 'futbol', 'liga futve', 'futve',
+    'selección venezolana', 'seleccion venezolana', 'mundial', 'fifa',
+    'copa américa', 'copa america', 'eliminatorias', 'conmebol',
+    
+    # MLB (Béisbol Internacional)
     'atlanta', 'detroit', 'grandes ligas', 'mlb', 'yankees', 'red sox', 
-    'dodgers', 'astros', 'padres de san diego', 'mets', 'reds', 'cubs',
+    'dodgers', 'astros', 'padres', 'mets', 'reds', 'cubs',
+    'world series', 'serie mundial', 'postseason', 'playoffs mlb',
+    
+    # Otras Ligas de Béisbol
     'escogido', 'cibaeñas', 'cibao', 'licey', 'lidom', 'toros del este', 
     'estrellas orientales', 'tomateros', 'naranjeros', 'yaquis', 'lmp', 
-    'liga del pacifico', 'vinotinto', 'fútbol', 'futbol', 'champions league', 
-    'liga futve', 'real madrid', 'barcelona', 'messi', 'ronaldo', 'nba', 
-    'baloncesto', 'basket', 'formula 1', 'f1', 'red bull', 'ferrari', 
-    'tenis', 'atp', 'wta', 'boxeo', 'ufc', 'pádel', 'padel'
+    'liga del pacifico', 'liga mexicana', 'mexican league',
+    
+    # Otros Deportes
+    'nba', 'baloncesto', 'basket', 'formula 1', 'f1', 'red bull', 'ferrari', 
+    'tenis', 'atp', 'wta', 'boxeo', 'ufc', 'pádel', 'padel',
+    'golf', 'pga', 'motogp', 'nascar', 'ciclismo', 'tour'
 ]
 
 # 3. PALABRAS ANTI-SPAM
@@ -52,13 +77,20 @@ def es_noticia_lvbp_precisa(titulo, desc, fuente_nombre):
     if es_spam(titulo):
         return False
 
+    # 1.5 VERIFICACIÓN CRÍTICA: Bloquear explícitamente Copa Libertadores
+    if 'libertadores' in texto:
+        return False
+    if 'copa' in texto and 'libertadores' in texto:
+        return False
+    if 'copa libertadores' in texto:
+        return False
+
     # 2. Descartar si menciona otras ligas de béisbol u otros deportes
     if any(descarte in texto for descarte in OTRAS_LIGAS_Y_DEPORTES):
         return False
 
-    # 3. Caso especial El Emergente (Sitio especializado, pero aún así verificamos términos base)
+    # 3. Caso especial El Emergente (Sitio especializado en béisbol criollo)
     if fuente_nombre == 'El Emergente':
-        # Solo damos el pase si al menos tiene un término de béisbol genérico o de LVBP
         if any(t in texto for t in ['beisbol', 'pelota', 'lvbp', 'liga venezolana']):
             return True
 
@@ -72,7 +104,7 @@ def es_noticia_lvbp_precisa(titulo, desc, fuente_nombre):
     if 'aguilas' in texto and not any(k in texto for k in ['zulia', 'lvbp', 'liga venezolana', 'pelota criolla']):
         return False
 
-    # 5. Términos inequívocos de la LVBP (Actualizado)
+    # 5. Términos inequívocos de la LVBP
     TERMINOS_UNICOS_LVBP = [
         'lvbp', 'magallanes', 'navegantes', 'tiburones', 'la guaira', 
         'cardenales de lara', 'cardenales', 'caribes de anzoategui', 'caribes', 
@@ -99,7 +131,7 @@ def obtener_html_con_playwright(url):
 
 def obtener_noticias_externas():
     noticias = []
-    print("📰 Buscando en fuentes externas de LVBP con Playwright...")
+    print(" Buscando en fuentes externas de LVBP con Playwright...")
     
     for fuente in FUENTES:
         print(f"  - {fuente['nombre']}...")
@@ -133,16 +165,15 @@ def obtener_noticias_externas():
             if len(titulo) < 18 or len(titulo) > 200:
                 continue
             
-            # Buscar Enlace (MEJORA: Filtrar enlaces basura)
+            # Buscar Enlace (Filtrar enlaces basura)
             enlace = fuente['url']
             tag_a = art if art.name == 'a' else art.find('a', href=True)
             if tag_a and tag_a.get('href'):
                 href = tag_a['href'].strip()
-                # Ignorar enlaces internos, scripts o correos
                 if href and not href.startswith(('javascript:', '#', 'mailto:', 'tel:')):
                     enlace = href if href.startswith('http') else urljoin(fuente['url'], href)
 
-            # Buscar Descripción (MEJORA: Exigir longitud mínima para evitar "Por: Redacción")
+            # Buscar Descripción (Exigir longitud mínima)
             desc = ''
             p_tag = art.find('p')
             if p_tag:
@@ -150,14 +181,13 @@ def obtener_noticias_externas():
                 if len(desc_candidata) > 30:
                     desc = desc_candidata[:200]
 
-            # Buscar Imagen (MEJORA: Validar que no sea un placeholder o base64 diminuto)
+            # Buscar Imagen (Validar que no sea placeholder)
             img_url = None
             img_tag = art.find('img')
             if img_tag:
                 src = img_tag.get('src') or img_tag.get('data-src') or img_tag.get('srcset')
                 if src:
                     src = src.split(',')[0].split(' ')[0].strip()
-                    # Validar que sea una URL real y no un placeholder diminuto
                     if src.startswith('http') and len(src) > 25 and 'placeholder' not in src.lower():
                         img_url = urljoin(fuente['url'], src)
 
