@@ -1,9 +1,12 @@
 import requests
-from bs4 import BeautifulSoup
-import re
+import json
 from playwright.sync_api import sync_playwright
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
+# URLs de la LVBP
+LVBP_RESULTADOS = "https://stats.lvbp.com/resultados.php"
+LVBP_POSICIONES = "https://stats.lvbp.com/posiciones.php"
 
 # Nombres completos de los 8 equipos de la LVBP
 EQUIPOS_LVBP = [
@@ -12,76 +15,200 @@ EQUIPOS_LVBP = [
     'cardenales de lara', 'bravos de margarita'
 ]
 
-def obtener_tabla_posiciones():
-    """Entra a la web de la LVBP con un navegador invisible y extrae la tabla."""
-    print("  🕵️ Entrando a LVBP.com con navegador invisible...")
+def capturar_api_con_playwright(url):
+    """
+    Usa Playwright Network Interception para capturar las respuestas JSON
+    que el servidor envía al navegador.
+    """
+    print(f"  🕵️ Interceptando red en {url}...")
+    datos_capturados = []
+    
     try:
         with sync_playwright() as p:
-            # Lanzamos el navegador en modo invisible (headless)
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
             
-            # Entramos a la página y esperamos a que cargue todo
-            page.goto("https://www.lvbp.com/posiciones/", wait_until="networkidle", timeout=20000)
+            # INTERCEPTOR DE RED: Captura todas las respuestas
+            def handle_response(response):
+                # Solo nos interesan las respuestas JSON de stats.lvbp.com
+                if 'stats.lvbp.com' in response.url and response.status == 200:
+                    try:
+                        # Intentar parsear como JSON
+                        body = response.json()
+                        datos_capturados.append({
+                            'url': response.url,
+                            'data': body
+                        })
+                        print(f"  ✅ API capturada: {response.url}")
+                    except:
+                        # No es JSON, ignorar
+                        pass
             
-            # Esperamos específicamente a que aparezca una tabla
-            try:
-                page.wait_for_selector("table", timeout=10000)
-            except:
-                print("  ⚠️ No se encontró tabla de posiciones.")
-                browser.close()
-                return None
-
-            # Obtenemos el HTML completo ya renderizado
-            html = page.content()
+            # Registrar el interceptor
+            page.on("response", handle_response)
+            
+            # Navegar a la página
+            page.goto(url, wait_until="networkidle", timeout=20000)
+            
+            # Esperar un poco más para capturar todas las peticiones
+            page.wait_for_timeout(3000)
+            
             browser.close()
             
-        # Ahora usamos BeautifulSoup para leer ese HTML limpio
-        soup = BeautifulSoup(html, 'html.parser')
-        filas = soup.find_all('tr')
+        return datos_capturados
         
-        posiciones = []
-        for fila in filas:
-            columnas = fila.find_all('td')
-            if len(columnas) >= 4:
-                nombre_equipo = columnas[1].get_text(strip=True).lower()
-                # Verificamos si es un equipo de la LVBP
-                if any(eq in nombre_equipo for eq in EQUIPOS_LVBP):
-                    ganados = columnas[2].get_text(strip=True)
-                    perdidos = columnas[3].get_text(strip=True)
-                    pct = columnas[4].get_text(strip=True) if len(columnas) > 4 else ".000"
-                    # Formateamos en lista vertical para tableta
-                    posiciones.append(f"• {columnas[1].get_text(strip=True)}: {ganados} G - {perdidos} P ({pct})")
-                    
-        if len(posiciones) >= 4:
-            return "🏆 <b>TABLA DE POSICIONES LVBP</b>\n\n" + "\n".join(posiciones)
-            
     except Exception as e:
-        print(f"  ️ Error con Playwright: {e}")
+        print(f"  ⚠️ Error con Playwright: {e}")
+        return []
+
+def extraer_posiciones(datos_capturados):
+    """Extrae la tabla de posiciones de los datos capturados."""
+    for dato in datos_capturados:
+        data = dato.get('data', {})
         
+        # Buscar estructura de posiciones en el JSON
+        # La estructura puede variar, buscamos patrones comunes
+        if isinstance(data, dict):
+            # Buscar en diferentes niveles del JSON
+            for key in ['standings', 'posiciones', 'tabla', 'data', 'results']:
+                if key in data:
+                    equipos = data[key]
+                    if isinstance(equipos, list) and len(equipos) >= 4:
+                        return formatear_posiciones(equipos)
+            
+            # Si no encontramos la clave exacta, buscar en todo el JSON
+            for key, value in data.items():
+                if isinstance(value, list) and len(value) >= 4:
+                    # Verificar si parece ser una tabla de posiciones
+                    primer_item = value[0]
+                    if isinstance(primer_item, dict):
+                        # Buscar claves que indiquen equipos
+                        claves = str(primer_item.keys()).lower()
+                        if any(eq in claves for eq in ['team', 'equipo', 'name', 'nombre', 'wins', 'ganados', 'losses', 'perdidos']):
+                            return formatear_posiciones(value)
+        
+        # Si es una lista directamente
+        elif isinstance(data, list) and len(data) >= 4:
+            return formatear_posiciones(data)
+    
+    return None
+
+def formatear_posiciones(equipos):
+    """Formatea la lista de equipos en texto para Telegram."""
+    posiciones = []
+    
+    for i, equipo in enumerate(equipos[:8], 1):
+        if isinstance(equipo, dict):
+            # Buscar nombre del equipo en diferentes claves
+            nombre = (equipo.get('team', {}).get('displayName', '') or 
+                     equipo.get('equipo', '') or 
+                     equipo.get('name', '') or 
+                     equipo.get('nombre', '') or
+                     str(equipo.get('team', '')))
+            
+            # Buscar estadísticas
+            ganados = equipo.get('wins', equipo.get('ganados', equipo.get('w', '0')))
+            perdidos = equipo.get('losses', equipo.get('perdidos', equipo.get('l', '0')))
+            pct = equipo.get('pct', equipo.get('porcentaje', '.000'))
+            
+            if nombre and any(eq in str(nombre).lower() for eq in EQUIPOS_LVBP):
+                posiciones.append(f"{i}. {nombre}: {ganados}G - {perdidos}P ({pct})")
+    
+    if len(posiciones) >= 4:
+        return "🏆 <b>TABLA DE POSICIONES LVBP</b>\n\n" + "\n".join(posiciones)
+    
+    return None
+
+def extraer_resultados(datos_capturados):
+    """Extrae los resultados del día de los datos capturados."""
+    for dato in datos_capturados:
+        data = dato.get('data', {})
+        
+        if isinstance(data, dict):
+            # Buscar estructura de resultados
+            for key in ['games', 'resultados', 'scores', 'events', 'data']:
+                if key in data:
+                    juegos = data[key]
+                    if isinstance(juegos, list) and len(juegos) > 0:
+                        return formatear_resultados(juegos)
+            
+            # Buscar en todo el JSON
+            for key, value in data.items():
+                if isinstance(value, list) and len(value) > 0:
+                    primer_item = value[0]
+                    if isinstance(primer_item, dict):
+                        claves = str(primer_item.keys()).lower()
+                        if any(k in claves for k in ['home', 'away', 'local', 'visitante', 'score', 'resultado']):
+                            return formatear_resultados(value)
+        
+        elif isinstance(data, list) and len(data) > 0:
+            return formatear_resultados(data)
+    
+    return None
+
+def formatear_resultados(juegos):
+    """Formatea la lista de juegos en texto para Telegram."""
+    resultados = []
+    
+    for juego in juegos[:5]:  # Últimos 5 juegos
+        if isinstance(juego, dict):
+            # Buscar equipos y scores
+            local = (juego.get('home', {}).get('team', {}).get('displayName', '') or
+                    juego.get('local', {}).get('nombre', '') or
+                    juego.get('homeTeam', ''))
+            
+            visitante = (juego.get('away', {}).get('team', {}).get('displayName', '') or
+                        juego.get('visitante', {}).get('nombre', '') or
+                        juego.get('awayTeam', ''))
+            
+            score_local = juego.get('home', {}).get('score', juego.get('scoreHome', '0'))
+            score_visitante = juego.get('away', {}).get('score', juego.get('scoreAway', '0'))
+            
+            estado = juego.get('status', {}).get('type', {}).get('state', 'final')
+            
+            if local and visitante:
+                if estado == 'post' or estado == 'final':
+                    resultados.append(f"⚾ {local} <b>{score_local}</b> - <b>{score_visitante}</b> {visitante}")
+                else:
+                    resultados.append(f"🔄 {local} vs {visitante} ({estado})")
+    
+    if resultados:
+        return " <b>RESULTADOS DE HOY</b>\n\n" + "\n".join(resultados)
+    
+    return None
+
+def obtener_tabla_posiciones():
+    """Obtiene la tabla de posiciones usando Network Interception."""
+    print("   Buscando tabla de posiciones...")
+    
+    # Intentar con la página de posiciones
+    datos = capturar_api_con_playwright(LVBP_POSICIONES)
+    
+    if datos:
+        posiciones = extraer_posiciones(datos)
+        if posiciones:
+            return posiciones
+    
+    # Si falla, intentar con la página de resultados
+    print("  🔄 Intentando con página de resultados...")
+    datos = capturar_api_con_playwright(LVBP_RESULTADOS)
+    
+    if datos:
+        posiciones = extraer_posiciones(datos)
+        if posiciones:
+            return posiciones
+    
     return None
 
 def obtener_resultados_recientes():
-    """Busca en Meridiano el último resumen de resultados si la LVBP falla."""
-    try:
-        resp = requests.get("https://meridiano.net/beisbol/beisbol-venezolano/", headers=HEADERS, timeout=15)
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        articulos = soup.find_all(['article', 'div'], class_=re.compile(r'post|entry|news|card', re.I))
-        
-        for art in articulos[:10]:
-            titulo_tag = art.find(['h2', 'h3', 'a'])
-            if titulo_tag:
-                titulo = titulo_tag.get_text(strip=True).lower()
-                if 'resultados' in titulo or 'jornada' in titulo or 'cerró' in titulo:
-                    desc_tag = art.find('p')
-                    enlace_tag = art.find('a', href=True)
-                    enlace = enlace_tag['href'] if enlace_tag else "https://meridiano.net"
-                    
-                    if desc_tag:
-                        texto = f"📊 <b>RESUMEN DE LA JORNADA</b>\n\n"
-                        texto += f"{desc_tag.get_text(strip=True)[:250]}...\n\n"
-                        texto += f"🔗 Lee más: {enlace}"
-                        return texto
-    except Exception:
-        pass
+    """Obtiene los resultados del día usando Network Interception."""
+    print("  📊 Buscando resultados del día...")
+    
+    datos = capturar_api_con_playwright(LVBP_RESULTADOS)
+    
+    if datos:
+        resultados = extraer_resultados(datos)
+        if resultados:
+            return resultados
+    
     return None
