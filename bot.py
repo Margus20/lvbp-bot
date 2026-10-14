@@ -80,6 +80,7 @@ def guardar_visto(norm):
         f.write(norm + '\n')
 
 def detectar_equipo_youtube(titulo):
+    """Detecta equipo por nombre completo en el título del video."""
     t = titulo.lower()
     for eq, nombres in EQUIPOS_NOMBRES.items():
         for nombre in nombres:
@@ -88,6 +89,7 @@ def detectar_equipo_youtube(titulo):
     return 'general'
 
 def obtener_channel_id(url_completa):
+    """Obtiene el channel_id desde la URL completa de YouTube."""
     if url_completa in channel_id_cache:
         return channel_id_cache[url_completa]
     try:
@@ -96,13 +98,17 @@ def obtener_channel_id(url_completa):
         if match:
             cid = match.group(1)
             channel_id_cache[url_completa] = cid
+            print(f"  ✅ {url_completa} -> {cid}")
             return cid
     except Exception as e:
         print(f"  ⚠️ Error con {url_completa}: {e}")
     return None
 
 def enviar_con_logo(logo_key, texto, url_img=None):
+    """Envía foto con lógica infalible: imagen noticia → logo equipo → logo liga → solo texto."""
     logo_url = LOGOS.get(logo_key, LOGOS['general'])
+    
+    # Intentar con imagen de la noticia
     if url_img and str(url_img).startswith('http'):
         try:
             resp = requests.get(url_img, headers=HEADERS, timeout=10)
@@ -110,8 +116,12 @@ def enviar_con_logo(logo_key, texto, url_img=None):
                 files = {'photo': ('img.jpg', resp.content, 'image/jpeg')}
                 data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
                 r = requests.post(f'https://api.telegram.org/bot{TOKEN}/sendPhoto', files=files, data=data, timeout=15)
-                if r.status_code == 200: return True
-        except: pass
+                if r.status_code == 200:
+                    return True
+        except:
+            pass
+    
+    # Usar logo del equipo como respaldo
     try:
         resp = requests.get(logo_url, headers=HEADERS, timeout=10)
         if resp.status_code == 200:
@@ -119,7 +129,10 @@ def enviar_con_logo(logo_key, texto, url_img=None):
             data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
             r = requests.post(f'https://api.telegram.org/bot{TOKEN}/sendPhoto', files=files, data=data, timeout=15)
             return r.status_code == 200
-    except: pass
+    except:
+        pass
+    
+    # Último recurso: solo texto
     data = {'chat_id': CHANNEL, 'text': texto, 'parse_mode': 'HTML'}
     requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', data=data, timeout=10)
     return True
@@ -129,17 +142,17 @@ def enviar_mensaje(texto):
     r = requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', data=data, timeout=10)
     return r.status_code == 200
 
-# --- AQUÍ ESTÁ EL CAMBIO CLAVE: USAR PLAYWRIGHT PARA LAS PÁGINAS DE LOS EQUIPOS ---
 def obtener_noticias_web(equipo_key, url_base, logo_key):
-    """Obtiene noticias usando Playwright para evadir bloqueos en webs de equipos."""
+    """Obtiene noticias usando Playwright con domcontentloaded para evadir bloqueos."""
     noticias = []
     print(f"  🕵️ Escaneando {equipo_key} con navegador invisible...")
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
-            page.goto(url_base, wait_until="networkidle", timeout=15000)
-            page.wait_for_timeout(1500) # Esperar renderizado
+            # CAMBIO CLAVE: domcontentloaded + timeout 45s
+            page.goto(url_base, wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(2000)
             html = page.content()
             browser.close()
 
@@ -166,9 +179,11 @@ def obtener_noticias_web(equipo_key, url_base, logo_key):
     return noticias
 
 def obtener_videos_youtube(equipo_key, url_completa):
+    """Obtiene videos de YouTube con miniatura y enlace."""
     videos = []
     cid = obtener_channel_id(url_completa)
-    if not cid: return videos
+    if not cid:
+        return videos
     try:
         resp = requests.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}", timeout=10)
         if resp.status_code == 200:
@@ -190,14 +205,17 @@ def obtener_videos_youtube(equipo_key, url_completa):
     return videos
 
 def obtener_jornada():
+    """Obtiene la jornada del día desde el calendario.json."""
     hoy = datetime.now().strftime('%Y-%m-%d')
     try:
         with open(CALENDARIO_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
         for s in data.get('calendario', []):
-            if s.get('fecha_inicio') <= hoy <= s.get('fecha_fin'): return s
+            if s.get('fecha_inicio') <= hoy <= s.get('fecha_fin'):
+                return s
         for s in data.get('calendario', []):
-            if s.get('activo'): return s
+            if s.get('activo'):
+                return s
     except Exception as e:
         print(f"  ⚠️ Error calendario: {e}")
     return None
@@ -207,7 +225,7 @@ def main():
     vistos = cargar_vistos()
     todas = []
 
-    # 1. Páginas web oficiales (9 fuentes) - AHORA CON PLAYWRIGHT
+    # 1. Páginas web oficiales (9 fuentes) - CON PLAYWRIGHT
     print("🌐 Páginas web oficiales...")
     for eq, datos in PAGINAS.items():
         print(f"  - {eq} ({datos['url']})")
@@ -220,10 +238,10 @@ def main():
         todas.extend(obtener_videos_youtube(eq, url))
 
     # 3. Fuentes externas de noticias (7 portales) - CON PLAYWRIGHT
-    print("📰 Fuentes externas...")
+    print(" Fuentes externas...")
     todas.extend(obtener_noticias_externas())
 
-    print(f"📊 Total: {len(todas)}")
+    print(f" Total: {len(todas)}")
 
     # Filtrar nuevas (SIN LÍMITE)
     finales = []
@@ -260,7 +278,7 @@ def main():
             time.sleep(2)
 
     # Estadísticas automáticas (Tabla de posiciones y resultados)
-    print("📊 Buscando estadísticas automáticas...")
+    print(" Buscando estadísticas automáticas...")
     tabla = obtener_tabla_posiciones()
     if tabla:
         data = {'chat_id': CHANNEL, 'text': tabla, 'parse_mode': 'HTML'}
