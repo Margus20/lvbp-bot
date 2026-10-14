@@ -158,22 +158,19 @@ def obtener_noticias_web(equipo_key, url_base, logo_key):
 
         soup = BeautifulSoup(html, 'html.parser')
         
-        # SELECTORES FLEXIBLES: busca en múltiples tipos de contenedores
+        # Selectores flexibles
         articulos = soup.find_all(
             ['article', 'div', 'section', 'li', 'main'],
             class_=re.compile(r'post|news|article|entry|card|item|story|content', re.I)
         )
         
-        # Si no encuentra con clases, buscar todos los articles
         if not articulos:
             articulos = soup.find_all('article')
         
-        # Si aún no encuentra, buscar divs con enlaces internos
         if not articulos:
             articulos = soup.find_all('div')[:30]
         
         for art in articulos[:20]:
-            # Buscar título en múltiples tags
             tag = art.find(['h1', 'h2', 'h3', 'h4', 'h5', 'a'])
             if tag:
                 tit = limpiar(tag.get_text(strip=True))
@@ -274,13 +271,12 @@ def main():
 
     # Publicar TODAS con enlaces y logos (SIN LÍMITE)
     for norm, n in finales:
-        # CORRECCIÓN: Emojis correctos para cada tipo
         if n['tipo'] == 'youtube':
-            texto = f"📺 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n🔗 {n['enlace']}"
+            texto = f"📺 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n {n['enlace']}"
         elif n['tipo'] == 'externa':
-            texto = f"📰 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n📌 Fuente: {n.get('fuente', 'LVBP')}\n🔗 {n['enlace']}"
+            texto = f"📰 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n Fuente: {n.get('fuente', 'LVBP')}\n🔗 {n['enlace']}"
         else:
-            texto = f"⚾ <b>{n['titulo']}</b>\n\n{n['desc']}\n\n🔗 {n['enlace']}"
+            texto = f"⚾ <b>{n['titulo']}</b>\n\n{n['desc']}\n\n {n['enlace']}"
 
         logo_key = n.get('logo', 'general')
         if enviar_con_logo(logo_key, texto, n.get('img')):
@@ -292,12 +288,12 @@ def main():
     print("📅 Jornada...")
     j = obtener_jornada()
     if j:
-        t = f"📅 <b>{j.get('titulo', 'JORNADA')}</b>\n\n{j.get('descripcion', '')}"
+        t = f" <b>{j.get('titulo', 'JORNADA')}</b>\n\n{j.get('descripcion', '')}"
         if enviar_con_logo('general', t, j.get('imagen')):
             print("  ✅ Jornada publicada")
             time.sleep(2)
 
-    # Estadísticas automáticas
+    # Estadísticas automáticas (SOLO si hay datos reales - SIN MENSAJES DE ERROR)
     print("📊 Buscando estadísticas automáticas...")
     tabla = obtener_tabla_posiciones()
     if tabla:
@@ -306,6 +302,10 @@ def main():
         print("  ✅ Tabla de posiciones publicada")
         time.sleep(2)
     else:
+        print("  ️ Sin tabla de posiciones (datos no disponibles)")
+    
+    # Solo intentar resultados si no hay tabla
+    if not tabla:
         resumen = obtener_resultados_recientes()
         if resumen:
             data = {'chat_id': CHANNEL, 'text': resumen, 'parse_mode': 'HTML'}
