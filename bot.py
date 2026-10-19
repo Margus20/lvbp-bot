@@ -1,27 +1,27 @@
-import os, re, time, json, requests
-import xml.etree.ElementTree as ET
-from urllib.parse import urljoin
-from bs4 import BeautifulSoup
+import os
+import re
+import json
+import time
+import requests
 from datetime import datetime
-from playwright.sync_api import sync_playwright
-from resumen_lvbp import obtener_noticias_externas
-from estadisticas import obtener_tabla_posiciones, obtener_resultados_recientes
 
+# ============================================
+# CONFIGURACIÓN
+# ============================================
 TOKEN = os.environ.get('BOT_TOKEN')
-CHANNEL = '@LVBpalDia'
-VISTOS_FILE = 'vistos.txt'
-CALENDARIO_FILE = 'calendario.json'
+CHANNEL = '@LVBPalDia'
+
+# URL directa del archivo data.js de tu página (raw de GitHub)
+DATA_JS_URL = 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/js/data.js'
+
+# Tu página web (para los enlaces)
+TU_PAGINA = 'https://margus20.github.io/lvbp-stats/'
+
+VISTOS_FILE = 'vistos.json'
+
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
-# PALABRAS PROHIBIDAS (filtro anti-spam)
-PALABRAS_PROHIBIDAS = [
-    'suscríbete', 'suscribete', 'suscribirse', 'boletín', 'boletin', 'newsletter',
-    'política de privacidad', 'politica de privacidad', 'contacto', 'iniciar sesión',
-    'registrarse', 'registro', 'login', 'cookies', 'aviso legal', 'términos y condiciones',
-    'acerca de', 'about', 'mapa del sitio', 'publicidad', 'anúnciate', 'trabaja con nosotros'
-]
-
-# LOGOS DE CADA EQUIPO
+# Logos de cada equipo
 LOGOS = {
     'tiburones': 'https://i.postimg.cc/J7Hm024y/image-search-1791382706892.png',
     'aguilas': 'https://i.postimg.cc/J4wxQnwX/1791392132263-11zon.jpg',
@@ -34,286 +34,256 @@ LOGOS = {
     'general': 'https://i.postimg.cc/T29t9x9M/image-search-1791397173263.jpg'
 }
 
-# 9 PÁGINAS WEB OFICIALES
-PAGINAS = {
-    'lvbp': {'url': 'https://lvbp.com/', 'logo': 'general'},
-    'leones': {'url': 'https://leones.com/', 'logo': 'leones'},
-    'navegantes': {'url': 'https://magallanesbbc.com.ve/', 'logo': 'navegantes'},
-    'tiburones': {'url': 'https://www.tiburonesbbc.com/', 'logo': 'tiburones'},
-    'aguilas': {'url': 'https://aguilas.com/', 'logo': 'aguilas'},
-    'tigres': {'url': 'https://tigresdearaguabbc.com/', 'logo': 'tigres'},
-    'caribes': {'url': 'https://caribesbbc.com/', 'logo': 'caribes'},
-    'cardenales': {'url': 'https://cardenalesdelara.com/', 'logo': 'cardenales'},
-    'bravos': {'url': 'https://bravosdemargarita.com/', 'logo': 'bravos'}
-}
-
-# 9 CANALES DE YOUTUBE
-YOUTUBE_URLS = {
-    'lvbp': 'https://youtube.com/@lvbp_oficial',
-    'leones': 'https://youtube.com/@teleleones_cbbc',
-    'navegantes': 'https://youtube.com/@magallanesbbcoficial',
-    'tiburones': 'https://youtube.com/@tiburonesbbc_',
-    'tigres': 'https://youtube.com/@circuitoradialtigresdearagua',
-    'aguilas': 'https://youtube.com/@aguilasdelzuliabbc',
-    'cardenales': 'https://youtube.com/@cardenalesbbc',
-    'bravos': 'https://youtube.com/@bravosesmargaritatv',
-    'beisbolplay': 'https://youtube.com/@beisbolplay'
-}
-
-# NOMBRES COMPLETOS DE EQUIPOS (evita confusiones con otros países)
-EQUIPOS_NOMBRES = {
-    'tiburones': ['tiburones de la guaira', 'tiburones lvg', 'tiburones de la guaira bbc'],
-    'aguilas': ['aguilas del zulia', 'aguilas del zulia bbc', 'aguilas zulia'],
-    'tigres': ['tigres de aragua', 'tigres de aragua bbc', 'tigres aragua'],
-    'caribes': ['caribes de anzoategui', 'caribes de anzoategui bbc', 'caribes anzoategui'],
-    'bravos': ['bravos de margarita', 'bravos de margarita bbc', 'bravos margarita'],
-    'cardenales': ['cardenales de lara', 'cardenales de lara bbc', 'cardenales lara'],
-    'navegantes': ['navegantes del magallanes', 'navegantes del magallanes bbc', 'navegantes magallanes'],
-    'leones': ['leones del caracas', 'leones del caracas bbc', 'leones caracas']
-}
-
-channel_id_cache = {}
-
-def limpiar(txt):
-    return re.sub(r'\s+', ' ', re.sub(r'https?://\S+|www\.\S+', '', txt)).strip()
+# ============================================
+# FUNCIONES AUXILIARES
+# ============================================
 
 def cargar_vistos():
+    """Carga el historial de lo ya publicado."""
     if os.path.exists(VISTOS_FILE):
         with open(VISTOS_FILE, 'r', encoding='utf-8') as f:
-            return set(line.strip() for line in f if line.strip())
-    return set()
+            return json.load(f)
+    return {'noticias': [], 'resultados': '', 'posiciones': '', 'calendario': ''}
 
-def guardar_visto(norm):
-    with open(VISTOS_FILE, 'a', encoding='utf-8') as f:
-        f.write(norm + '\n')
+def guardar_vistos(datos):
+    """Guarda el historial."""
+    with open(VISTOS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(datos, f, ensure_ascii=False, indent=2)
 
-def detectar_equipo_youtube(titulo):
-    t = titulo.lower()
-    for eq, nombres in EQUIPOS_NOMBRES.items():
-        for nombre in nombres:
-            if nombre in t:
-                return eq
+def obtener_data_js():
+    """Descarga y parsea el archivo data.js de tu página."""
+    print("📡 Descargando data.js de tu página...")
+    try:
+        resp = requests.get(DATA_JS_URL, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+        contenido = resp.text
+        
+        # Extraer el objeto DATOS del JavaScript
+        match = re.search(r'const\s+DATOS\s*=\s*(\{[\s\S]*?\});\s*$', contenido, re.MULTILINE)
+        
+        if match:
+            json_str = match.group(1)
+            datos = json.loads(json_str)
+            print(f"✅ Datos extraídos: {len(datos.get('noticias', []))} noticias")
+            return datos
+        else:
+            print("⚠️ No se encontró el objeto DATOS en el archivo")
+            return None
+            
+    except Exception as e:
+        print(f"⚠️ Error al descargar data.js: {e}")
+        return None
+
+def detectar_equipo(texto):
+    """Detecta qué equipo se menciona para usar su logo."""
+    texto_lower = texto.lower()
+    equipos = {
+        'tiburones': ['tiburones', 'la guaira'],
+        'aguilas': ['aguilas', 'zulia'],
+        'tigres': ['tigres', 'aragua'],
+        'caribes': ['caribes', 'anzoategui'],
+        'bravos': ['bravos', 'margarita'],
+        'cardenales': ['cardenales', 'lara'],
+        'navegantes': ['navegantes', 'magallanes'],
+        'leones': ['leones', 'caracas']
+    }
+    for equipo, nombres in equipos.items():
+        if any(nombre in texto_lower for nombre in nombres):
+            return equipo
     return 'general'
 
-def obtener_channel_id(url_completa):
-    if url_completa in channel_id_cache:
-        return channel_id_cache[url_completa]
-    try:
-        resp = requests.get(url_completa, headers=HEADERS, timeout=10, allow_redirects=True)
-        match = re.search(r'"channelId":"(UC[^"]+)"', resp.text)
-        if match:
-            cid = match.group(1)
-            channel_id_cache[url_completa] = cid
-            return cid
-    except Exception as e:
-        print(f"  ⚠️ Error con {url_completa}: {e}")
-    return None
-
-def enviar_con_logo(logo_key, texto, url_img=None):
+def enviar_con_imagen(texto, imagen_url, logo_key='general'):
+    """Envía mensaje a Telegram con imagen."""
     logo_url = LOGOS.get(logo_key, LOGOS['general'])
     
-    if url_img and str(url_img).startswith('http'):
+    # Intentar enviar con la imagen de la noticia
+    if imagen_url and imagen_url.startswith('http'):
         try:
-            resp = requests.get(url_img, headers=HEADERS, timeout=10)
+            resp = requests.get(imagen_url, headers=HEADERS, timeout=10)
             if resp.status_code == 200 and len(resp.content) > 1000:
-                files = {'photo': ('img.jpg', resp.content, 'image/jpeg')}
+                files = {'photo': ('noticia.jpg', resp.content, 'image/jpeg')}
                 data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
-                r = requests.post(f'https://api.telegram.org/bot{TOKEN}/sendPhoto', files=files, data=data, timeout=15)
+                r = requests.post(
+                    f'https://api.telegram.org/bot{TOKEN}/sendPhoto',
+                    files=files, data=data, timeout=15
+                )
                 if r.status_code == 200:
                     return True
         except:
             pass
     
+    # Fallback: enviar con el logo del equipo
     try:
         resp = requests.get(logo_url, headers=HEADERS, timeout=10)
         if resp.status_code == 200:
             files = {'photo': ('logo.jpg', resp.content, 'image/jpeg')}
             data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
-            r = requests.post(f'https://api.telegram.org/bot{TOKEN}/sendPhoto', files=files, data=data, timeout=15)
+            r = requests.post(
+                f'https://api.telegram.org/bot{TOKEN}/sendPhoto',
+                files=files, data=data, timeout=15
+            )
             return r.status_code == 200
     except:
         pass
     
+    # Último recurso: solo texto
     data = {'chat_id': CHANNEL, 'text': texto, 'parse_mode': 'HTML'}
     requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', data=data, timeout=10)
     return True
 
-def enviar_mensaje(texto):
-    data = {'chat_id': CHANNEL, 'text': texto, 'parse_mode': 'HTML'}
-    r = requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', data=data, timeout=10)
-    return r.status_code == 200
+# ============================================
+# FUNCIONES DE PUBLICACIÓN
+# ============================================
 
-def obtener_noticias_web(equipo_key, url_base, logo_key):
-    """Obtiene noticias usando Playwright con selectores FLEXIBLES."""
-    noticias = []
-    print(f"  🕵️ Escaneando {equipo_key} con navegador invisible...")
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.goto(url_base, wait_until="domcontentloaded", timeout=45000)
-            page.wait_for_timeout(2000)
-            html = page.content()
-            browser.close()
-
-        soup = BeautifulSoup(html, 'html.parser')
+def publicar_noticias(datos, vistos):
+    """Publica noticias nuevas con imagen, título y enlace."""
+    print("📰 Publicando noticias...")
+    
+    for noticia in datos.get('noticias', []):
+        titulo = noticia.get('titulo', '')
+        norm = titulo.lower().strip()
         
-        # Selectores flexibles
-        articulos = soup.find_all(
-            ['article', 'div', 'section', 'li', 'main'],
-            class_=re.compile(r'post|news|article|entry|card|item|story|content', re.I)
+        # Verificar si ya se publicó
+        if norm in [v.lower().strip() for v in vistos['noticias']]:
+            continue
+        
+        # Construir mensaje
+        tag = noticia.get('tag', 'LVBP')
+        fecha = noticia.get('fecha', '')
+        resumen = noticia.get('resumen', '')
+        imagen = noticia.get('imagen', '')
+        
+        texto = (
+            f"📰 <b>{titulo}</b>\n\n"
+            f"🏷️ {tag}\n"
+            f"📅 {fecha}\n\n"
+            f"{resumen[:200]}\n\n"
+            f"🔗 Leer más: {TU_PAGINA}"
         )
         
-        if not articulos:
-            articulos = soup.find_all('article')
+        logo_key = detectar_equipo(titulo)
         
-        if not articulos:
-            articulos = soup.find_all('div')[:30]
+        if enviar_con_imagen(texto, imagen, logo_key):
+            print(f"  ✅ Publicada: {titulo[:50]}")
+            vistos['noticias'].append(titulo)
+            time.sleep(2)
+        else:
+            print(f"  ⚠️ Error al publicar: {titulo[:50]}")
+
+def publicar_resultados(datos, vistos):
+    """Publica resultados si cambiaron."""
+    print("⚾ Publicando resultados...")
+    
+    resultados = datos.get('resultados', [])
+    if not resultados:
+        return
+    
+    texto = "⚾ <b>RESULTADOS</b>\n\n"
+    for r in resultados:
+        visitante = r.get('visitante', '')
+        local = r.get('local', '')
+        score_vis = r.get('scoreVisitante', 0)
+        score_loc = r.get('scoreLocal', 0)
+        fecha = r.get('fecha', '')
+        texto += f"{visitante} {score_vis} - {score_loc} {local} ({fecha})\n"
+    
+    texto += f"\n🔗 Ver más: {TU_PAGINA}#resultados"
+    
+    if texto != vistos.get('resultados'):
+        if enviar_con_imagen(texto, None, 'general'):
+            print("  ✅ Resultados publicados")
+            vistos['resultados'] = texto
+            time.sleep(2)
+    else:
+        print("  ⏭️ Sin cambios en resultados")
+
+def publicar_posiciones(datos, vistos):
+    """Publica tabla de posiciones si cambió."""
+    print("🏆 Publicando posiciones...")
+    
+    posiciones = datos.get('posiciones', [])
+    if not posiciones:
+        return
+    
+    texto = "🏆 <b>TABLA DE POSICIONES LVBP</b>\n\n"
+    for i, eq in enumerate(posiciones, 1):
+        nombre = eq.get('nombre', '').replace(' de Anzoátegui', '').replace(' de Aragua', '').replace(' de Lara', '').replace(' de Margarita', '').replace(' del Zulia', '').replace(' de La Guaira', '').replace(' del Caracas', '').replace(' del Magallanes', '')
+        jg = eq.get('jg', 0)
+        jp = eq.get('jp', 0)
+        texto += f"{i}. {nombre} ({jg}-{jp})\n"
+    
+    texto += f"\n🔗 Ver completa: {TU_PAGINA}#posiciones"
+    
+    if texto != vistos.get('posiciones'):
+        if enviar_con_imagen(texto, None, 'general'):
+            print("  ✅ Posiciones publicadas")
+            vistos['posiciones'] = texto
+            time.sleep(2)
+    else:
+        print("  ️ Sin cambios en posiciones")
+
+def publicar_calendario(datos, vistos):
+    """Publica jornada del día."""
+    print("📅 Publicando calendario...")
+    
+    calendario = datos.get('calendario', [])
+    if not calendario:
+        return
+    
+    hoy = datetime.now().strftime('%d %b')
+    texto = f"📅 <b>JORNADA DE HOY - {hoy}</b>\n\n"
+    
+    for juego in calendario:
+        visitante = juego.get('visitante', '')
+        local = juego.get('local', '')
+        hora = juego.get('hora', 'Por definir')
+        transmision = juego.get('transmision', '')
         
-        for art in articulos[:20]:
-            tag = art.find(['h1', 'h2', 'h3', 'h4', 'h5', 'a'])
-            if tag:
-                tit = limpiar(tag.get_text(strip=True))
-                if len(tit) > 15:
-                    enlace = url_base
-                    if tag.name == 'a' and tag.get('href'):
-                        enlace = urljoin(url_base, tag.get('href'))
-                    elif art.find('a') and art.find('a').get('href'):
-                        enlace = urljoin(url_base, art.find('a').get('href'))
-                    desc = limpiar(art.find('p').get_text(strip=True)[:200]) if art.find('p') else ''
-                    img = art.find('img')
-                    img_url = urljoin(url_base, img.get('src')) if img and img.get('src') else None
-                    noticias.append({
-                        'titulo': tit, 'desc': desc, 'img': img_url, 'enlace': enlace,
-                        'logo': logo_key, 'tipo': 'web'
-                    })
-    except Exception as e:
-        print(f"  ⚠️ Error {equipo_key}: {e}")
-    return noticias
+        texto += f"🕐 {hora} - {visitante} vs {local}\n"
+        if transmision and transmision != 'Por definir':
+            texto += f"    {transmision}\n"
+    
+    texto += f"\n🔗 Ver calendario: {TU_PAGINA}#calendario"
+    
+    if texto != vistos.get('calendario'):
+        if enviar_con_imagen(texto, None, 'general'):
+            print("  ✅ Calendario publicado")
+            vistos['calendario'] = texto
+            time.sleep(2)
+    else:
+        print("  ️ Sin cambios en calendario")
 
-def obtener_videos_youtube(equipo_key, url_completa):
-    videos = []
-    cid = obtener_channel_id(url_completa)
-    if not cid:
-        return videos
-    try:
-        resp = requests.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}", timeout=10)
-        if resp.status_code == 200:
-            root = ET.fromstring(resp.content)
-            ns = {'atom': 'http://www.w3.org/2005/Atom', 'yt': 'http://www.youtube.com/xml/schemas/2015', 'media': 'http://search.yahoo.com/mrss/'}
-            for entry in root.findall('atom:entry', ns)[:5]:
-                video_id = entry.find('yt:videoId', ns).text
-                titulo = entry.find('atom:title', ns).text
-                link = entry.find('atom:link', ns).attrib['href']
-                thumb = entry.find('media:group/media:thumbnail', ns)
-                img = thumb.get('url') if thumb is not None else f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
-                logo = detectar_equipo_youtube(titulo)
-                videos.append({
-                    'titulo': titulo, 'desc': 'Ver video completo en YouTube', 'img': img,
-                    'enlace': link, 'logo': logo, 'tipo': 'youtube'
-                })
-    except Exception as e:
-        print(f"  ⚠️ Error YouTube {url_completa}: {e}")
-    return videos
-
-def obtener_jornada():
-    hoy = datetime.now().strftime('%Y-%m-%d')
-    try:
-        with open(CALENDARIO_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        for s in data.get('calendario', []):
-            if s.get('fecha_inicio') <= hoy <= s.get('fecha_fin'):
-                return s
-        for s in data.get('calendario', []):
-            if s.get('activo'):
-                return s
-    except Exception as e:
-        print(f"  ️ Error calendario: {e}")
-    return None
+# ============================================
+# FUNCIÓN PRINCIPAL
+# ============================================
 
 def main():
-    print("⚾ Iniciando bot LVBP completo...")
-    vistos = cargar_vistos()
-    todas = []
-
-    # 1. Páginas web oficiales (9 fuentes)
-    print("🌐 Páginas web oficiales...")
-    for eq, datos in PAGINAS.items():
-        print(f"  - {eq} ({datos['url']})")
-        todas.extend(obtener_noticias_web(eq, datos['url'], datos['logo']))
-
-    # 2. YouTube (9 canales)
-    print("📺 YouTube...")
-    for eq, url in YOUTUBE_URLS.items():
-        print(f"  - {eq}: {url}")
-        todas.extend(obtener_videos_youtube(eq, url))
-
-    # 3. Fuentes externas (7 portales)
-    print("📰 Fuentes externas...")
-    todas.extend(obtener_noticias_externas())
-
-    print(f"📊 Total: {len(todas)}")
-
-    # Filtrar nuevas (SIN LÍMITE + FILTRO ANTI-SPAM)
-    finales = []
-    for n in todas:
-        norm = re.sub(r'[^a-z0-9]', '', n['titulo'].lower())
-        titulo_lower = n['titulo'].lower()
-        
-        # FILTRO ANTI-SPAM
-        es_basura = any(palabra in titulo_lower for palabra in PALABRAS_PROHIBIDAS)
-        
-        if norm not in vistos and len(norm) > 15 and not es_basura:
-            vistos.add(norm)
-            finales.append((norm, n))
-
-    print(f"✅ Nuevas: {len(finales)}")
-
-    # Publicar TODAS con enlaces y logos (SIN LÍMITE)
-    for norm, n in finales:
-        if n['tipo'] == 'youtube':
-            texto = f"📺 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n {n['enlace']}"
-        elif n['tipo'] == 'externa':
-            texto = f"📰 <b>{n['titulo']}</b>\n\n{n['desc']}\n\n Fuente: {n.get('fuente', 'LVBP')}\n🔗 {n['enlace']}"
-        else:
-            texto = f"⚾ <b>{n['titulo']}</b>\n\n{n['desc']}\n\n {n['enlace']}"
-
-        logo_key = n.get('logo', 'general')
-        if enviar_con_logo(logo_key, texto, n.get('img')):
-            guardar_visto(norm)
-            print(f"  ✅ {n['titulo'][:40]}")
-            time.sleep(2)
-
-    # Jornada de hoy
-    print("📅 Jornada...")
-    j = obtener_jornada()
-    if j:
-        t = f" <b>{j.get('titulo', 'JORNADA')}</b>\n\n{j.get('descripcion', '')}"
-        if enviar_con_logo('general', t, j.get('imagen')):
-            print("  ✅ Jornada publicada")
-            time.sleep(2)
-
-    # Estadísticas automáticas (SOLO si hay datos reales - SIN MENSAJES DE ERROR)
-    print("📊 Buscando estadísticas automáticas...")
-    tabla = obtener_tabla_posiciones()
-    if tabla:
-        data = {'chat_id': CHANNEL, 'text': tabla, 'parse_mode': 'HTML'}
-        requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', data=data, timeout=10)
-        print("  ✅ Tabla de posiciones publicada")
-        time.sleep(2)
-    else:
-        print("  ️ Sin tabla de posiciones (datos no disponibles)")
+    print("🤖 Bot LVBP - Extrayendo de TU PÁGINA WEB")
+    print(f"📡 Fuente: {DATA_JS_URL}")
+    print(f" Página: {TU_PAGINA}")
+    print("=" * 50)
     
-    # Solo intentar resultados si no hay tabla
-    if not tabla:
-        resumen = obtener_resultados_recientes()
-        if resumen:
-            data = {'chat_id': CHANNEL, 'text': resumen, 'parse_mode': 'HTML'}
-            requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', data=data, timeout=10)
-            print("  ✅ Resumen de resultados publicado")
-            time.sleep(2)
-
-    print("✅ Terminado")
+    # Cargar historial
+    vistos = cargar_vistos()
+    
+    # Obtener datos de tu página
+    datos = obtener_data_js()
+    
+    if not datos:
+        print("❌ No se pudieron obtener los datos")
+        return
+    
+    # Publicar novedades
+    publicar_noticias(datos, vistos)
+    publicar_resultados(datos, vistos)
+    publicar_posiciones(datos, vistos)
+    publicar_calendario(datos, vistos)
+    
+    # Guardar historial actualizado
+    guardar_vistos(vistos)
+    
+    print("=" * 50)
+    print("✅ Bot completado")
 
 if __name__ == '__main__':
     main()
