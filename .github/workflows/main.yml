@@ -28,7 +28,7 @@ jobs:
       - name: 📦 Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install requests json5
+          pip install requests json5 Pillow
           
       - name: 🤖 Ejecutar bot modular
         env:
@@ -39,7 +39,7 @@ jobs:
         run: |
           # Crear vistos.json con la estructura correcta si no existe
           if [ ! -f vistos.json ]; then
-            echo '{"noticias": [], "resultados": [], "posiciones": "", "calendario": ""}' > vistos.json
+            echo '{"noticias": [], "resultados": [], "posiciones": "", "calendario": "", "estadisticas": ""}' > vistos.json
             echo "⚠️ vistos.json no existía. Se creó automáticamente."
           fi
           
