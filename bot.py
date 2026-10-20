@@ -58,16 +58,33 @@ def obtener_data_js():
         resp.raise_for_status()
         contenido = resp.text
         
-        # Extraer el objeto DATOS del JavaScript
-        match = re.search(r'const\s+DATOS\s*=\s*(\{[\s\S]*?\});\s*$', contenido, re.MULTILINE)
+        # PASO 1: Eliminar comentarios de una línea (//)
+        # Esto evita que los comentarios rompan el JSON
+        contenido_limpio = re.sub(r'//.*', '', contenido)
+        
+        # PASO 2: Buscar el objeto DATOS = { ... }
+        # Usamos un regex más robusto que captura todo entre las llaves
+        match = re.search(r'const\s+DATOS\s*=\s*(\{.*\})\s*;?\s*$', contenido_limpio, re.DOTALL)
         
         if match:
             json_str = match.group(1)
-            datos = json.loads(json_str)
-            print(f"✅ Datos extraídos: {len(datos.get('noticias', []))} noticias")
-            return datos
+            
+            # PASO 3: Intentar parsear como JSON
+            try:
+                datos = json.loads(json_str)
+                print(f"✅ Datos extraídos exitosamente")
+                print(f"   - {len(datos.get('noticias', []))} noticias")
+                print(f"   - {len(datos.get('resultados', []))} resultados")
+                print(f"   - {len(datos.get('posiciones', []))} equipos en posiciones")
+                print(f"   - {len(datos.get('calendario', []))} juegos en calendario")
+                return datos
+            except json.JSONDecodeError as e:
+                print(f"❌ Error al parsear JSON: {e}")
+                print(f"   Primeros 200 caracteres del JSON extraído:")
+                print(f"   {json_str[:200]}")
+                return None
         else:
-            print("⚠️ No se encontró el objeto DATOS en el archivo")
+            print("️ No se encontró el objeto DATOS en el archivo")
             return None
             
     except Exception as e:
@@ -137,7 +154,7 @@ def enviar_con_imagen(texto, imagen_url, logo_key='general'):
 
 def publicar_noticias(datos, vistos):
     """Publica noticias nuevas con imagen, título y enlace."""
-    print("📰 Publicando noticias...")
+    print(" Publicando noticias...")
     
     for noticia in datos.get('noticias', []):
         titulo = noticia.get('titulo', '')
@@ -158,7 +175,7 @@ def publicar_noticias(datos, vistos):
             f"🏷️ {tag}\n"
             f"📅 {fecha}\n\n"
             f"{resumen[:200]}\n\n"
-            f"🔗 Leer más: {TU_PAGINA}"
+            f" Leer más: {TU_PAGINA}"
         )
         
         logo_key = detectar_equipo(titulo)
@@ -220,7 +237,7 @@ def publicar_posiciones(datos, vistos):
             vistos['posiciones'] = texto
             time.sleep(2)
     else:
-        print("  ️ Sin cambios en posiciones")
+        print("  ⏭️ Sin cambios en posiciones")
 
 def publicar_calendario(datos, vistos):
     """Publica jornada del día."""
@@ -251,7 +268,7 @@ def publicar_calendario(datos, vistos):
             vistos['calendario'] = texto
             time.sleep(2)
     else:
-        print("  ️ Sin cambios en calendario")
+        print("  ⏭️ Sin cambios en calendario")
 
 # ============================================
 # FUNCIÓN PRINCIPAL
@@ -260,7 +277,7 @@ def publicar_calendario(datos, vistos):
 def main():
     print("🤖 Bot LVBP - Extrayendo de TU PÁGINA WEB")
     print(f"📡 Fuente: {DATA_JS_URL}")
-    print(f" Página: {TU_PAGINA}")
+    print(f"🌐 Página: {TU_PAGINA}")
     print("=" * 50)
     
     # Cargar historial
