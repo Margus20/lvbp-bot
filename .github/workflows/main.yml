@@ -28,7 +28,7 @@ jobs:
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          pip install requests json5
           
       - name: Ejecutar bot
         env:
@@ -37,18 +37,14 @@ jobs:
         
       - name: Guardar historial
         run: |
-          # 1. VERIFICAR Y CREAR: Si vistos.json no existe, lo crea vacío
+          # Crear vistos.json si no existe
           if [ ! -f vistos.json ]; then
-            echo "[]" > vistos.json
-            echo "⚠️ El archivo vistos.json no existía. Se ha creado automáticamente."
+            echo '{"noticias": [], "resultados": "", "posiciones": "", "calendario": ""}' > vistos.json
+            echo "⚠️ vistos.json no existía. Se creó automáticamente."
           fi
           
-          # 2. CONFIGURAR GIT
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          
-          # 3. AGREGAR, COMMIT Y PUSH
-          # El "|| echo" al final evita que el workflow falle si no hay cambios nuevos
           git add vistos.json
-          git commit -m "Actualizar historial de noticias" || echo "Sin cambios nuevos para guardar"
+          git commit -m "Actualizar historial de noticias" || echo "Sin cambios"
           git push
