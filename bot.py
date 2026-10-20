@@ -1,9 +1,9 @@
 import os
-import re
 import json
 import time
 import requests
 from datetime import datetime
+import json5
 
 # ============================================
 # CONFIGURACIÓN
@@ -13,6 +13,7 @@ CHANNEL = '@LVBPalDia'
 
 DATA_JS_URL = 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/js/data.js'
 TU_PAGINA = 'https://margus20.github.io/lvbp-stats/'
+
 VISTOS_FILE = 'vistos.json'
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
@@ -29,70 +30,45 @@ LOGOS = {
     'general': 'https://i.postimg.cc/T29t9x9M/image-search-1791397173263.jpg'
 }
 
+# ============================================
+# FUNCIONES AUXILIARES
+# ============================================
+
 def cargar_vistos():
+    """Carga el historial de lo ya publicado."""
     if os.path.exists(VISTOS_FILE):
         with open(VISTOS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return {'noticias': [], 'resultados': '', 'posiciones': '', 'calendario': ''}
 
 def guardar_vistos(datos):
+    """Guarda el historial."""
     with open(VISTOS_FILE, 'w', encoding='utf-8') as f:
         json.dump(datos, f, ensure_ascii=False, indent=2)
 
 def obtener_data_js():
-    """Descarga y parsea el archivo data.js usando un enfoque más robusto."""
+    """Descarga y parsea el archivo data.js usando json5."""
     print("📡 Descargando data.js de tu página...")
     try:
         resp = requests.get(DATA_JS_URL, headers=HEADERS, timeout=30)
         resp.raise_for_status()
-        contenido = resp.text
         
-        # Eliminar comentarios de una línea (//) y multilinea (/* */)
-        contenido = re.sub(r'//.*', '', contenido)
-        contenido = re.sub(r'/\*.*?\*/', '', contenido, flags=re.DOTALL)
+        # json5 lee JavaScript nativo (con comentarios, sin comillas, etc.)
+        datos = json5.loads(resp.text)
         
-        # Buscar const DATOS = { ... }
-        match = re.search(r'const\s+DATOS\s*=\s*(\{[\s\S]*\})\s*;?\s*$', contenido)
+        print("✅ Datos extraídos exitosamente con json5")
+        print(f"   - {len(datos.get('noticias', []))} noticias")
+        print(f"   - {len(datos.get('resultados', []))} resultados")
+        print(f"   - {len(datos.get('posiciones', []))} equipos en posiciones")
+        print(f"   - {len(datos.get('calendario', []))} juegos en calendario")
+        return datos
         
-        if not match:
-            print("❌ No se encontró const DATOS")
-            return None
-        
-        js_object = match.group(1)
-        
-        # Convertir JavaScript object a JSON válido
-        # Reemplazar propiedades sin comillas: clave: → "clave":
-        js_object = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', js_object)
-        
-        # Reemplazar strings con comillas simples a dobles
-        # Esto es más complejo, lo haremos paso a paso
-        lines = js_object.split('\n')
-        json_lines = []
-        for line in lines:
-            # Reemplazar ' con " pero solo en strings, no en el contenido
-            line = re.sub(r":\s*'([^']*)'", r': "\1"', line)
-            json_lines.append(line)
-        
-        json_str = '\n'.join(json_lines)
-        
-        # Ahora intentar parsear
-        try:
-            datos = json.loads(json_str)
-            print("✅ Datos extraídos exitosamente")
-            print(f"   - {len(datos.get('noticias', []))} noticias")
-            print(f"   - {len(datos.get('resultados', []))} resultados")
-            return datos
-        except json.JSONDecodeError as e:
-            print(f"❌ Error JSON: {e}")
-            print(f"   Fragmento problemático:")
-            print(f"   {json_str[200:400]}")
-            return None
-            
     except Exception as e:
-        print(f"️ Error: {e}")
+        print(f"⚠️ Error al descargar data.js: {e}")
         return None
 
 def detectar_equipo(texto):
+    """Detecta qué equipo se menciona para usar su logo."""
     texto_lower = texto.lower()
     equipos = {
         'tiburones': ['tiburones', 'la guaira'],
@@ -110,49 +86,73 @@ def detectar_equipo(texto):
     return 'general'
 
 def enviar_con_imagen(texto, imagen_url, logo_key='general'):
+    """Envía mensaje a Telegram con imagen."""
     logo_url = LOGOS.get(logo_key, LOGOS['general'])
     
+    # Intentar enviar con la imagen de la noticia
     if imagen_url and imagen_url.startswith('http'):
         try:
             resp = requests.get(imagen_url, headers=HEADERS, timeout=10)
             if resp.status_code == 200 and len(resp.content) > 1000:
                 files = {'photo': ('noticia.jpg', resp.content, 'image/jpeg')}
                 data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
-                r = requests.post(f'https://api.telegram.org/bot{TOKEN}/sendPhoto', files=files, data=data, timeout=15)
+                r = requests.post(
+                    f'https://api.telegram.org/bot{TOKEN}/sendPhoto',
+                    files=files, data=data, timeout=15
+                )
                 if r.status_code == 200:
                     return True
         except:
             pass
     
+    # Fallback: enviar con el logo del equipo
     try:
         resp = requests.get(logo_url, headers=HEADERS, timeout=10)
         if resp.status_code == 200:
             files = {'photo': ('logo.jpg', resp.content, 'image/jpeg')}
             data = {'chat_id': CHANNEL, 'caption': texto, 'parse_mode': 'HTML'}
-            r = requests.post(f'https://api.telegram.org/bot{TOKEN}/sendPhoto', files=files, data=data, timeout=15)
+            r = requests.post(
+                f'https://api.telegram.org/bot{TOKEN}/sendPhoto',
+                files=files, data=data, timeout=15
+            )
             return r.status_code == 200
     except:
         pass
     
+    # Último recurso: solo texto
     data = {'chat_id': CHANNEL, 'text': texto, 'parse_mode': 'HTML'}
     requests.post(f'https://api.telegram.org/bot{TOKEN}/sendMessage', data=data, timeout=10)
     return True
 
+# ============================================
+# FUNCIONES DE PUBLICACIÓN
+# ============================================
+
 def publicar_noticias(datos, vistos):
+    """Publica noticias nuevas con imagen, título y enlace."""
     print("📰 Publicando noticias...")
+    
     for noticia in datos.get('noticias', []):
         titulo = noticia.get('titulo', '')
         norm = titulo.lower().strip()
         
+        # Verificar si ya se publicó
         if norm in [v.lower().strip() for v in vistos['noticias']]:
             continue
         
+        # Construir mensaje
         tag = noticia.get('tag', 'LVBP')
         fecha = noticia.get('fecha', '')
         resumen = noticia.get('resumen', '')
         imagen = noticia.get('imagen', '')
         
-        texto = f"📰 <b>{titulo}</b>\n\n🏷️ {tag}\n📅 {fecha}\n\n{resumen[:200]}\n\n Leer más: {TU_PAGINA}"
+        texto = (
+            f"📰 <b>{titulo}</b>\n\n"
+            f"🏷️ {tag}\n"
+            f"📅 {fecha}\n\n"
+            f"{resumen[:200]}\n\n"
+            f"🔗 Leer más: {TU_PAGINA}"
+        )
         
         logo_key = detectar_equipo(titulo)
         
@@ -160,14 +160,18 @@ def publicar_noticias(datos, vistos):
             print(f"  ✅ Publicada: {titulo[:50]}")
             vistos['noticias'].append(titulo)
             time.sleep(2)
+        else:
+            print(f"  ️ Error al publicar: {titulo[:50]}")
 
 def publicar_resultados(datos, vistos):
+    """Publica resultados si cambiaron."""
     print("⚾ Publicando resultados...")
+    
     resultados = datos.get('resultados', [])
     if not resultados:
         return
     
-    texto = "⚾ <b>RESULTADOS</b>\n\n"
+    texto = " <b>RESULTADOS</b>\n\n"
     for r in resultados:
         visitante = r.get('visitante', '')
         local = r.get('local', '')
@@ -183,9 +187,13 @@ def publicar_resultados(datos, vistos):
             print("  ✅ Resultados publicados")
             vistos['resultados'] = texto
             time.sleep(2)
+    else:
+        print("  ⏭️ Sin cambios en resultados")
 
 def publicar_posiciones(datos, vistos):
-    print("🏆 Publicando posiciones...")
+    """Publica tabla de posiciones si cambió."""
+    print(" Publicando posiciones...")
+    
     posiciones = datos.get('posiciones', [])
     if not posiciones:
         return
@@ -197,16 +205,20 @@ def publicar_posiciones(datos, vistos):
         jp = eq.get('jp', 0)
         texto += f"{i}. {nombre} ({jg}-{jp})\n"
     
-    texto += f"\n Ver completa: {TU_PAGINA}#posiciones"
+    texto += f"\n🔗 Ver completa: {TU_PAGINA}#posiciones"
     
     if texto != vistos.get('posiciones'):
         if enviar_con_imagen(texto, None, 'general'):
             print("  ✅ Posiciones publicadas")
             vistos['posiciones'] = texto
             time.sleep(2)
+    else:
+        print("  ⏭️ Sin cambios en posiciones")
 
 def publicar_calendario(datos, vistos):
-    print("📅 Publicando calendario...")
+    """Publica jornada del día."""
+    print(" Publicando calendario...")
+    
     calendario = datos.get('calendario', [])
     if not calendario:
         return
@@ -220,7 +232,7 @@ def publicar_calendario(datos, vistos):
         hora = juego.get('hora', 'Por definir')
         transmision = juego.get('transmision', '')
         
-        texto += f"🕐 {hora} - {visitante} vs {local}\n"
+        texto += f" {hora} - {visitante} vs {local}\n"
         if transmision and transmision != 'Por definir':
             texto += f"    {transmision}\n"
     
@@ -231,25 +243,36 @@ def publicar_calendario(datos, vistos):
             print("  ✅ Calendario publicado")
             vistos['calendario'] = texto
             time.sleep(2)
+    else:
+        print("  ⏭️ Sin cambios en calendario")
+
+# ============================================
+# FUNCIÓN PRINCIPAL
+# ============================================
 
 def main():
-    print("🤖 Bot LVBP - Extrayendo de TU PÁGINA WEB")
-    print(f"📡 Fuente: {DATA_JS_URL}")
+    print(" Bot LVBP - Extrayendo de TU PÁGINA WEB")
+    print(f" Fuente: {DATA_JS_URL}")
     print(f"🌐 Página: {TU_PAGINA}")
     print("=" * 50)
     
+    # Cargar historial
     vistos = cargar_vistos()
+    
+    # Obtener datos de tu página
     datos = obtener_data_js()
     
     if not datos:
         print("❌ No se pudieron obtener los datos")
         return
     
+    # Publicar novedades
     publicar_noticias(datos, vistos)
     publicar_resultados(datos, vistos)
     publicar_posiciones(datos, vistos)
     publicar_calendario(datos, vistos)
     
+    # Guardar historial actualizado
     guardar_vistos(vistos)
     
     print("=" * 50)
