@@ -37,8 +37,18 @@ jobs:
         
       - name: Guardar historial
         run: |
+          # 1. VERIFICAR Y CREAR: Si vistos.json no existe, lo crea vacío
+          if [ ! -f vistos.json ]; then
+            echo "[]" > vistos.json
+            echo "⚠️ El archivo vistos.json no existía. Se ha creado automáticamente."
+          fi
+          
+          # 2. CONFIGURAR GIT
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          
+          # 3. AGREGAR, COMMIT Y PUSH
+          # El "|| echo" al final evita que el workflow falle si no hay cambios nuevos
           git add vistos.json
-          git commit -m "Actualizar historial de noticias" || echo "Sin cambios"
+          git commit -m "Actualizar historial de noticias" || echo "Sin cambios nuevos para guardar"
           git push
