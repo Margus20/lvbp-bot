@@ -8,10 +8,33 @@ from extractores import resultados
 VISTOS_FILE = 'vistos.json'
 
 def cargar_vistos():
+    """Carga el historial o lo repara automáticamente si tiene el formato viejo."""
     if os.path.exists(VISTOS_FILE):
-        with open(VISTOS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {"resultados": []}
+        try:
+            with open(VISTOS_FILE, 'r', encoding='utf-8') as f:
+                datos = json.load(f)
+                
+                # BLINDAJE: Si "resultados" es un texto (formato viejo) o no existe, lo convertimos en lista
+                if "resultados" not in datos or isinstance(datos["resultados"], str):
+                    print("⚠️ Detectado formato antiguo en vistos.json. Reparando automáticamente...")
+                    datos["resultados"] = []
+                
+                # Aseguramos que existan las otras claves por si acaso
+                if "posiciones" not in datos: datos["posiciones"] = ""
+                if "calendario" not in datos: datos["calendario"] = ""
+                if "noticias" not in datos: datos["noticias"] = []
+                
+                return datos
+        except Exception as e:
+            print(f"⚠️ Error al leer vistos.json ({e}). Creando uno nuevo...")
+            
+    # Si no existe o hubo error, devolvemos la estructura correcta desde cero
+    return {
+        "resultados": [],
+        "posiciones": "",
+        "calendario": "",
+        "noticias": []
+    }
 
 def guardar_vistos(vistos):
     with open(VISTOS_FILE, 'w', encoding='utf-8') as f:
@@ -31,7 +54,7 @@ def enviar_a_telegram(mensaje):
 def main():
     print("🤖 Iniciando Bot Modular LVBP...")
     
-    # 1. Cargar historial
+    # 1. Cargar historial (ahora es 100% seguro)
     vistos = cargar_vistos()
     
     # 2. Pedirle al módulo de resultados que extraiga la info
