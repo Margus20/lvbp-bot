@@ -2,9 +2,10 @@
 import os
 import json
 import requests
+import time  # 🆕 Agregado para la pausa entre publicidades
 from config import TOKEN, CANAL
-# 🆕 Agregamos 'publicidad' a las importaciones
-from extractores import resultados, posiciones, noticias, calendario, estadisticas, publicidad
+# 🆕 Cambiado 'publicidad' por 'ppublicidad'
+from extractores import resultados, posiciones, noticias, calendario, estadisticas, ppublicidad
 
 VISTOS_FILE = 'vistos.json'
 
@@ -25,7 +26,7 @@ def cargar_vistos():
                 if "posiciones" not in datos: datos["posiciones"] = ""
                 if "calendario" not in datos: datos["calendario"] = ""
                 if "estadisticas" not in datos: datos["estadisticas"] = ""
-                if "publicidad" not in datos: datos["publicidad"] = ""  # 🆕 Agregado
+                if "publicidad" not in datos: datos["publicidad"] = ""
                 
                 return datos
         except Exception as e:
@@ -38,7 +39,7 @@ def cargar_vistos():
         "calendario": "",
         "noticias": [],
         "estadisticas": "",
-        "publicidad": ""  # 🆕 Agregado
+        "publicidad": ""
     }
 
 def guardar_vistos(vistos):
@@ -161,21 +162,27 @@ def main():
     print("-" * 50)
 
     # ==========================================
-    # 7. PROCESAR PUBLICIDAD (CON IMAGEN)
+    # 7. PROCESAR PUBLICIDAD (TODAS LAS IMÁGENES) 🆕
     # ==========================================
     print("📡 Extrayendo publicidad...")
-    data_publicidad = publicidad.obtener_publicidad()
-    if data_publicidad:
-        print("✅ Publicidad detectada. Publicando...")
-        if "imagen" in data_publicidad:
-            exito = enviar_imagen_a_telegram(data_publicidad["imagen"], data_publicidad["mensaje"])
-        else:
-            exito = enviar_a_telegram(data_publicidad["mensaje"])
-        
-        if exito:
-            print("📤 Publicidad enviada a Telegram con éxito.")
-        else:
-            print("❌ Falló el envío de publicidad.")
+    lista_publicidades = ppublicidad.obtener_todas_las_publicidades()
+    
+    if lista_publicidades:
+        print(f"✅ {len(lista_publicidades)} publicidades detectadas. Publicando...")
+        for i, data_publicidad in enumerate(lista_publicidades, 1):
+            print(f"   📢 Publicidad {i}/{len(lista_publicidades)}...")
+            if "imagen" in data_publicidad:
+                exito = enviar_imagen_a_telegram(data_publicidad["imagen"], data_publicidad["mensaje"])
+            else:
+                exito = enviar_a_telegram(data_publicidad["mensaje"])
+            
+            if exito:
+                print(f"   ✅ Publicidad {i} enviada con éxito.")
+            else:
+                print(f"   ❌ Falló el envío de publicidad {i}.")
+            
+            # Pequeña pausa de 1 segundo para no saturar la API de Telegram
+            time.sleep(1)
     else:
         print("⚠️ No se pudo extraer publicidad.")
     print("=" * 50)
