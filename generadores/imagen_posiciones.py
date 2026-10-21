@@ -3,21 +3,49 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import requests
 from io import BytesIO
 
-# URL del logo del canal
+# URL del logo del canal y de los equipos
 LOGO_CANAL = 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/logo_pag.png'
+LOGOS_EQUIPOS = {
+    'magallanes': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/magallanes.png',
+    'cardenales': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/cardenales.png',
+    'tigres': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/tigres.png',
+    'aguilas': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/aguilas.png',
+    'leones': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/leones.png',
+    'tiburones': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/tiburones.png',
+    'bravos': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/bravos.png',
+    'caribes': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/caribes.png',
+}
 
-def descargar_logo():
-    """Descarga el logo del canal"""
+def descargar_logo(url=LOGO_CANAL):
+    """Descarga una imagen desde una URL (por defecto el logo del canal)"""
     try:
-        resp = requests.get(LOGO_CANAL, timeout=10)
+        resp = requests.get(url, timeout=10)
         if resp.status_code == 200:
             return Image.open(BytesIO(resp.content)).convert("RGBA")
     except:
         pass
     return None
 
+def detectar_equipo(nombre):
+    """Detecta qué equipo es para usar su logo"""
+    nombre_lower = nombre.lower()
+    equipos = {
+        'magallanes': ['magallanes', 'navegantes'],
+        'cardenales': ['cardenales'],
+        'tigres': ['tigres', 'aragua'],
+        'aguilas': ['aguilas', 'zulia'],
+        'leones': ['leones', 'caracas'],
+        'tiburones': ['tiburones', 'guaira'],
+        'bravos': ['bravos', 'margarita'],
+        'caribes': ['caribes', 'anzoategui'],
+    }
+    for equipo, nombres in equipos.items():
+        if any(n in nombre_lower for n in nombres):
+            return equipo
+    return 'magallanes' # Fallback por defecto
+
 def crear_imagen_posiciones(posiciones):
-    """Crea una imagen VERTICAL de la tabla de posiciones con fondo rojo oscuro"""
+    """Crea una imagen VERTICAL de la tabla de posiciones con fondo rojo oscuro y logos"""
     
     # 1. Crear canvas VERTICAL (500x800 pixels)
     img = Image.new('RGBA', (500, 800), (0, 0, 0, 0))
@@ -37,8 +65,8 @@ def crear_imagen_posiciones(posiciones):
     # 4. Cargar fuentes
     try:
         font_titulo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
-        font_equipo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
-        font_numero = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+        font_equipo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+        font_numero = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
         font_registro = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18)
     except:
         font_titulo = font_equipo = font_numero = font_registro = ImageFont.load_default()
@@ -92,17 +120,32 @@ def crear_imagen_posiciones(posiciones):
         # Fondo de la fila redondeado
         draw.rounded_rectangle([20, y, 480, y + 60], radius=10, fill=color_fila)
         
-        # Número de posición (círculo dorado)
-        draw.ellipse([30, y + 10, 60, y + 40], fill=(255, 215, 0, 255))
-        draw.text((45, y + 25), str(i + 1), fill=(0, 0, 0, 255), font=font_numero, anchor="mm")
+        # 🆕 Descargar y pegar el logo del equipo (tamaño 40x40)
+        equipo_key = detectar_equipo(nombre)
+        url_logo = LOGOS_EQUIPOS.get(equipo_key, LOGO_CANAL)
+        logo_equipo = descargar_logo(url_logo)
         
-        # Nombre del equipo (con ligera sombra)
-        draw.text((82, y + 26), nombre_corto.upper(), fill=(0, 0, 0, 150), font=font_equipo, anchor="lm")
-        draw.text((80, y + 25), nombre_corto.upper(), fill=(255, 255, 255, 255), font=font_equipo, anchor="lm")
+        if logo_equipo:
+            logo_equipo = logo_equipo.resize((40, 40), Image.Resampling.LANCZOS)
+            img.paste(logo_equipo, (25, y + 10), logo_equipo)
+            
+            # Número de posición (círculo dorado pequeño al lado del logo)
+            draw.ellipse([72, y + 18, 96, y + 42], fill=(255, 215, 0, 255))
+            draw.text((84, y + 30), str(i + 1), fill=(0, 0, 0, 255), font=font_numero, anchor="mm")
+            
+            # Nombre del equipo (desplazado a la derecha del logo, con sombra)
+            draw.text((107, y + 31), nombre_corto.upper(), fill=(0, 0, 0, 150), font=font_equipo, anchor="lm")
+            draw.text((105, y + 30), nombre_corto.upper(), fill=(255, 255, 255, 255), font=font_equipo, anchor="lm")
+        else:
+            # Fallback si el logo no carga (mantiene tu diseño original)
+            draw.ellipse([30, y + 10, 60, y + 40], fill=(255, 215, 0, 255))
+            draw.text((45, y + 25), str(i + 1), fill=(0, 0, 0, 255), font=font_numero, anchor="mm")
+            draw.text((82, y + 26), nombre_corto.upper(), fill=(0, 0, 0, 150), font=font_equipo, anchor="lm")
+            draw.text((80, y + 25), nombre_corto.upper(), fill=(255, 255, 255, 255), font=font_equipo, anchor="lm")
         
         # Récord (JG-JP) + Emoji de racha
         record_text = f"{jg}-{jp} {emoji_racha}"
-        draw.text((460, y + 25), record_text, fill=(255, 215, 0, 255), font=font_registro, anchor="rm")
+        draw.text((460, y + 30), record_text, fill=(255, 215, 0, 255), font=font_registro, anchor="rm")
     
     # 8. Footer con información
     draw.rounded_rectangle([50, 730, 450, 780], radius=15, fill=(0, 0, 0, 200))
