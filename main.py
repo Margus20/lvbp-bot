@@ -25,7 +25,7 @@ def cargar_vistos():
                 # Aseguramos que existan las otras claves por si acaso
                 if "posiciones" not in datos: datos["posiciones"] = ""
                 if "calendario" not in datos: datos["calendario"] = ""
-                if "estadisticas" not in datos: datos["estadisticas"] = "" # <-- Agregado
+                if "estadisticas" not in datos: datos["estadisticas"] = ""
                 
                 return datos
         except Exception as e:
@@ -37,7 +37,7 @@ def cargar_vistos():
         "posiciones": "",
         "calendario": "",
         "noticias": [],
-        "estadisticas": "" # <-- Agregado
+        "estadisticas": ""
     }
 
 def guardar_vistos(vistos):
@@ -45,7 +45,7 @@ def guardar_vistos(vistos):
         json.dump(vistos, f, ensure_ascii=False, indent=2)
 
 def enviar_a_telegram(mensaje):
-    """Envía el mensaje al canal"""
+    """Envía solo texto al canal"""
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     datos = {
         "chat_id": CANAL,
@@ -53,6 +53,18 @@ def enviar_a_telegram(mensaje):
         "parse_mode": "HTML"
     }
     respuesta = requests.post(url, json=datos)
+    return respuesta.status_code == 200
+
+def enviar_imagen_a_telegram(imagen_bytes, mensaje):
+    """🆕 NUEVA FUNCIÓN: Envía una imagen con texto (caption) al canal"""
+    url = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
+    files = {'photo': imagen_bytes}
+    datos = {
+        'chat_id': CANAL,
+        'caption': mensaje,
+        'parse_mode': 'HTML'
+    }
+    respuesta = requests.post(url, files=files, data=datos)
     return respuesta.status_code == 200
 
 def main():
@@ -63,14 +75,21 @@ def main():
     vistos = cargar_vistos()
     
     # ==========================================
-    # 2. PROCESAR RESULTADOS
+    # 2. PROCESAR RESULTADOS (AHORA CON IMAGEN)
     # ==========================================
     print("📡 Extrayendo resultados...")
     data_resultados = resultados.obtener_ultimo_resultado()
     if data_resultados:
         if data_resultados["id"] not in vistos["resultados"]:
             print("✅ ¡Nuevo resultado detectado! Publicando...")
-            if enviar_a_telegram(data_resultados["mensaje"]):
+            
+            # 🆕 MODIFICADO: Verificamos si hay imagen para enviarla, si no, envía solo texto
+            if "imagen" in data_resultados:
+                exito = enviar_imagen_a_telegram(data_resultados["imagen"], data_resultados["mensaje"])
+            else:
+                exito = enviar_a_telegram(data_resultados["mensaje"])
+                
+            if exito:
                 vistos["resultados"].append(data_resultados["id"])
                 print("📤 Enviado a Telegram con éxito.")
             else:
