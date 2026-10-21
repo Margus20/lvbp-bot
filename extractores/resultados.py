@@ -2,6 +2,7 @@
 import requests
 import json5
 from config import URLS_DATOS, HEADERS, TU_PAGINA
+from generadores.imagen_resultado import crear_imagen_resultado  # 🆕 NUEVA LÍNEA
 
 def obtener_ultimo_resultado():
     """Extrae el último resultado del archivo resultados.js"""
@@ -37,9 +38,14 @@ def obtener_ultimo_resultado():
             f"🔗 Ver detalles: {TU_PAGINA}#resultados"
         )
         
+        # 🆕 NUEVA LÍNEA: Generamos la imagen dinámica
+        imagen_bytes = crear_imagen_resultado(visitante, local, score_vis, score_loc, fecha)
+        
         # Devolvemos el mensaje y un "ID único" (la fecha + equipos) para saber si ya se publicó
         id_unico = f"{fecha}_{visitante}_{local}"
-        return {"mensaje": mensaje, "id": id_unico}
+        
+        # 🆕 MODIFICADO: Ahora devolvemos también la imagen
+        return {"mensaje": mensaje, "id": id_unico, "imagen": imagen_bytes}
         
     except Exception as e:
         print(f"❌ Error al extraer resultados: {e}")
