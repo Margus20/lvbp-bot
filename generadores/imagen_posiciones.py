@@ -23,9 +23,8 @@ def crear_imagen_posiciones(posiciones):
     img = Image.new('RGBA', (500, 800), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
-    # 2. Crear fondo con gradiente ROJO OSCURO
+    # 2. Crear fondo con gradiente ROJO OSCURO a negro
     for y in range(800):
-        # Gradiente de rojo oscuro a negro
         r = int(139 + (0 - 139) * (y / 800))
         g = int(0 + (0 - 0) * (y / 800))
         b = int(0 + (0 - 0) * (y / 800))
@@ -50,7 +49,8 @@ def crear_imagen_posiciones(posiciones):
         logo_canal = logo_canal.resize((60, 60), Image.Resampling.LANCZOS)
         img.paste(logo_canal, (15, 15), logo_canal)
     
-    # 6. Título "TABLA DE POSICIONES" centrado arriba
+    # 6. Título "TABLA DE POSICIONES" centrado arriba (con sombra para resaltar)
+    draw.text((252, 102), "🏆 TABLA DE POSICIONES", fill=(0, 0, 0, 150), font=font_titulo, anchor="mm")
     draw.text((250, 100), "🏆 TABLA DE POSICIONES", fill=(255, 215, 0, 255), font=font_titulo, anchor="mm")
     
     # 7. Dibujar cada equipo (máximo 8)
@@ -68,39 +68,44 @@ def crear_imagen_posiciones(posiciones):
             .replace(' del Zulia', '')
             .replace(' de La Guaira', '')
             .replace(' del Caracas', '')
-            .replace(' del Magallanes', ''))
+            .replace(' del Magallanes', '')
+        )
         
         jj = equipo.get('jj', 0)
         jg = equipo.get('jg', 0)
         jp = equipo.get('jp', 0)
         racha = equipo.get('racha', '')
         
-        # Color de fondo según posición (1ro = dorado, 2-4 = rojo claro, resto = rojo oscuro)
+        # Determinar emoji de racha
+        emoji_racha = "🟢" if "G" in racha else "🔴" if "P" in racha else "⚪"
+        
+        # Color de fondo según posición
         if i == 0:
-            color_fila = (180, 50, 50, 200)  # Dorado-rojo (1ro)
+            color_fila = (180, 50, 50, 220)  # Dorado-rojo (1ro)
         elif i < 4:
-            color_fila = (120, 20, 20, 180)  # Rojo claro (playoffs)
+            color_fila = (130, 20, 20, 200)  # Rojo claro (playoffs)
         else:
-            color_fila = (100, 10, 10, 150)  # Rojo oscuro
+            color_fila = (90, 10, 10, 180)   # Rojo oscuro
         
         y = y_inicio + (i * altura_fila)
         
-        # Fondo de la fila
+        # Fondo de la fila redondeado
         draw.rounded_rectangle([20, y, 480, y + 60], radius=10, fill=color_fila)
         
         # Número de posición (círculo dorado)
         draw.ellipse([30, y + 10, 60, y + 40], fill=(255, 215, 0, 255))
         draw.text((45, y + 25), str(i + 1), fill=(0, 0, 0, 255), font=font_numero, anchor="mm")
         
-        # Nombre del equipo
+        # Nombre del equipo (con ligera sombra)
+        draw.text((82, y + 26), nombre_corto.upper(), fill=(0, 0, 0, 150), font=font_equipo, anchor="lm")
         draw.text((80, y + 25), nombre_corto.upper(), fill=(255, 255, 255, 255), font=font_equipo, anchor="lm")
         
-        # Récord (JG-JP)
-        record_text = f"{jg}-{jp}"
+        # Récord (JG-JP) + Emoji de racha
+        record_text = f"{jg}-{jp} {emoji_racha}"
         draw.text((460, y + 25), record_text, fill=(255, 215, 0, 255), font=font_registro, anchor="rm")
     
     # 8. Footer con información
-    draw.rounded_rectangle([50, 730, 450, 780], radius=15, fill=(0, 0, 0, 180))
+    draw.rounded_rectangle([50, 730, 450, 780], radius=15, fill=(0, 0, 0, 200))
     draw.text((250, 755), "LVBP al Día - margus20.github.io", fill=(255, 255, 255, 255), font=font_registro, anchor="mm")
     
     # 9. Guardar en memoria
