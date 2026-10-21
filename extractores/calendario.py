@@ -3,9 +3,10 @@ import requests
 import json5
 from datetime import datetime
 from config import URLS_DATOS, HEADERS, TU_PAGINA
+from generadores.imagen_calendario import crear_imagen_calendario  # 🆕 NUEVA LÍNEA
 
 def obtener_jornada_hoy():
-    """Extrae los juegos de hoy del archivo calendario.js"""
+    """Extrae los juegos de hoy del archivo calendario.js y genera su imagen"""
     try:
         # 1. Descargar el archivo JS
         respuesta = requests.get(URLS_DATOS['calendario'], headers=HEADERS, timeout=10)
@@ -47,10 +48,18 @@ def obtener_jornada_hoy():
         
         mensaje += f"🔗 Ver calendario completo: {TU_PAGINA}#calendario"
         
+        # 5.  GENERAR LA IMAGEN VERTICAL BLANCA
+        imagen_bytes = crear_imagen_calendario(juegos_hoy, fecha_hoy)
+        
         # ID único: fecha + cantidad de juegos
         id_unico = f"{fecha_hoy}_{len(juegos_hoy)}"
         
-        return {"mensaje": mensaje, "id": id_unico}
+        # 6. 🆕 Devolver mensaje, ID y la imagen
+        return {
+            "mensaje": mensaje, 
+            "id": id_unico,
+            "imagen": imagen_bytes
+        }
         
     except Exception as e:
         print(f"❌ Error al extraer calendario: {e}")
