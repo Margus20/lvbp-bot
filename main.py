@@ -12,7 +12,7 @@ from config import TOKEN, CANAL
 from extractores import resultados, posiciones, noticias, calendario, estadisticas, ppublicidad
 
 # Generadores (crean las imágenes bonitas)
-from generadores import imagen_resultado, imagen_calendario, imagen_posiciones
+from generadores import imagen_resultado, imagen_calendario, imagen_posiciones, imagen_estadisticas
 
 VISTOS_FILE = 'vistos.json'
 
@@ -26,9 +26,9 @@ def cargar_vistos():
                 for key in ["resultados", "noticias_ids"]:
                     if key not in datos or isinstance(datos[key], str):
                         datos[key] = []
-                for key in ["posiciones", "calendario", "estadisticas", "fecha_publicidad", "fecha_noticias"]:
+                for key in ["posiciones", "calendario", "estadisticas", "fecha_publicidad", "fecha_noticias", "fecha_estadisticas"]:
                     if key not in datos:
-                        datos[key] = "" if key not in ["fecha_publicidad", "fecha_noticias"] else None
+                        datos[key] = "" if key not in ["fecha_publicidad", "fecha_noticias", "fecha_estadisticas"] else None
                 return datos
         except Exception as e:
             print(f"⚠️ Error al leer vistos.json ({e}). Creando uno nuevo...")
@@ -40,7 +40,8 @@ def cargar_vistos():
         "noticias_ids": [],
         "estadisticas": "",
         "fecha_publicidad": None,
-        "fecha_noticias": None
+        "fecha_noticias": None,
+        "fecha_estadisticas": None
     }
 
 def guardar_vistos(vistos):
@@ -171,7 +172,31 @@ def main():
     print("-" * 50)
 
     # ==========================================
-    # 6. PUBLICIDAD (CONTROLADA: 1 VEZ POR DÍA - DOBLE P)
+    # 6. PROCESAR ESTADÍSTICAS (CON IMAGEN - 1 VEZ AL DÍA)
+    # ==========================================
+    print("📊 Revisando estadísticas...")
+    
+    if vistos.get("fecha_estadisticas") != hoy_fecha:
+        data_estadisticas = estadisticas.obtener_lideres_estadisticas()
+        if data_estadisticas and "datos_completos" in data_estadisticas:
+            print("✅ Estadísticas actualizadas. Generando tarjeta visual...")
+            
+            # Generar imagen de estadísticas
+            img_stats = imagen_estadisticas.crear_imagen_estadisticas(data_estadisticas["datos_completos"])
+            
+            if img_stats:
+                enviar_imagen_a_telegram(img_stats, data_estadisticas["mensaje"])
+                print("   ✅ Tarjeta de estadísticas enviada.")
+                vistos["fecha_estadisticas"] = hoy_fecha
+                time.sleep(1.5)
+        else:
+            print("   ⏭️ Estadísticas omitidas (ya se publicaron hoy o no hay datos).")
+    else:
+        print("   ⏭️ Estadísticas omitidas (ya se publicaron hoy).")
+    print("-" * 50)
+
+    # ==========================================
+    # 7. PUBLICIDAD (CONTROLADA: 1 VEZ POR DÍA - DOBLE P)
     # ==========================================
     print("📢 Revisando publicidad (usando módulo 'ppublicidad' con doble P)...")
     
@@ -194,7 +219,7 @@ def main():
     print("-" * 50)
 
     # ==========================================
-    # 7. ACTUALIZAR HISTORIAL
+    # 8. ACTUALIZAR HISTORIAL
     # ==========================================
     print("💾 Guardando historial...")
     guardar_vistos(vistos)
