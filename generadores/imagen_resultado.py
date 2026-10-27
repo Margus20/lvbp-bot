@@ -2,7 +2,7 @@
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import requests
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta  # 🆕 Agregado timedelta para la fecha de ayer
 
 # URLs de los logos desde tu repositorio lvbp-stats
 LOGOS = {
@@ -20,7 +20,7 @@ LOGOS = {
 # Colores de fondo por equipo (basados en tu página)
 COLORES_FONDO = {
     'cardenales': (220, 38, 38),        # Rojo
-    'caribes': (200, 200, 200),         # Gris
+    'caribes': (245, 245, 245),         # 🆕 Gris claro/blanco (ajustado para detectar contraste)
     'tigres': (0, 38, 92),              # Azul oscuro
     'bravos': (78, 173, 173),           # Turquesa
     'leones': (0, 32, 96),              # Azul marino
@@ -83,8 +83,8 @@ def crear_imagen_resultados(juegos, fecha_hoy=None):
         font_fecha = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
         font_equipo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
         font_marcador = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 42)
-        font_innings = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
-        font_pitcher = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
+        font_innings = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
+        font_pitcher = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
         font_footer = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
     except:
         font_titulo = font_fecha = font_equipo = font_marcador = font_innings = font_pitcher = font_footer = ImageFont.load_default()
@@ -95,13 +95,13 @@ def crear_imagen_resultados(juegos, fecha_hoy=None):
         logo_canal = logo_canal.resize((50, 50), Image.Resampling.LANCZOS)
         img.paste(logo_canal, (15, 15), logo_canal)
     
-    # 6. Título
-    draw.text((ancho//2 + 1, 81), "⚾ RESULTADOS", fill=(0, 0, 0, 150), font=font_titulo, anchor="mm")
-    draw.text((ancho//2, 80), " RESULTADOS", fill=(220, 38, 38), font=font_titulo, anchor="mm")
+    # 6. 🆕 Título (SIN emoji y SIN sombra duplicada)
+    draw.text((ancho//2, 80), "RESULTADOS", fill=(220, 38, 38), font=font_titulo, anchor="mm")
     
-    # Fecha
+    # 🆕 Fecha: por defecto usa la fecha de ayer (cuando fueron los juegos)
     if not fecha_hoy:
-        fecha_hoy = datetime.now().strftime('%d de %B de %Y').capitalize()
+        fecha_ayer = datetime.now() - timedelta(days=1)
+        fecha_hoy = fecha_ayer.strftime('%d de %B de %Y').capitalize()
     draw.text((ancho//2, 115), fecha_hoy, fill=(220, 38, 38), font=font_fecha, anchor="mm")
     
     # Línea separadora dorada
@@ -157,12 +157,15 @@ def crear_imagen_resultados(juegos, fecha_hoy=None):
             logo_loc = logo_loc.resize((90, 90), Image.Resampling.LANCZOS)
             img.paste(logo_loc, (3*ancho//4 - 45, y + 10), logo_loc)
         
-        # Nombres de equipos
-        draw.text((ancho//4, y + 105), visitante.upper(), fill=(0, 0, 0, 180), font=font_equipo, anchor="mm")
-        draw.text((ancho//4, y + 103), visitante.upper(), fill=(255, 255, 255, 255), font=font_equipo, anchor="mm")
+        # 🆕 Nombres de equipos: DETECTAR si el fondo es claro (Caribes) para usar texto negro
+        es_visitante_claro = sum(color_vis) / 3 > 200
+        es_local_claro = sum(color_loc) / 3 > 200
         
-        draw.text((3*ancho//4, y + 105), local.upper(), fill=(0, 0, 0, 180), font=font_equipo, anchor="mm")
-        draw.text((3*ancho//4, y + 103), local.upper(), fill=(255, 255, 255, 255), font=font_equipo, anchor="mm")
+        color_texto_vis = (0, 0, 0) if es_visitante_claro else (255, 255, 255)
+        color_texto_loc = (0, 0, 0) if es_local_claro else (255, 255, 255)
+        
+        draw.text((ancho//4, y + 103), visitante.upper(), fill=color_texto_vis, font=font_equipo, anchor="mm")
+        draw.text((3*ancho//4, y + 103), local.upper(), fill=color_texto_loc, font=font_equipo, anchor="mm")
         
         # Círculo VS
         draw.ellipse([ancho//2 - 35, y + 40, ancho//2 + 35, y + 80], fill=(255, 255, 255, 255))
@@ -178,40 +181,27 @@ def crear_imagen_resultados(juegos, fecha_hoy=None):
         draw.text((ancho//2, y + 145), "-", fill=(255, 255, 255, 255), font=font_marcador, anchor="mm")
         draw.text((ancho//2 + 30, y + 145), score_loc, fill=(255, 215, 0, 255), font=font_marcador, anchor="lm")
         
-        # Innings (esquina superior derecha de la franja)
-        draw.text((ancho - 35, y + 128), f"{innings}", fill=(255, 215, 0, 255), font=font_innings, anchor="rm")
-        draw.text((ancho - 35, y + 145), "INNINGS", fill=(200, 200, 200, 255), font=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 10) if font_innings != ImageFont.load_default() else ImageFont.load_default(), anchor="rm")
+        # 🆕 Innings en una sola línea (esquina superior derecha de la franja)
+        innings_texto = f"{innings} INNINGS"
+        draw.text((ancho - 35, y + 128), innings_texto, fill=(255, 215, 0, 255), font=font_innings, anchor="rm")
         
         # Fecha del juego (centro, debajo del marcador)
         draw.text((ancho//2, y + 175), fecha_juego, fill=(200, 200, 200, 255), font=font_pitcher, anchor="mm")
         
-        # Pitchers (abajo, color-coded)
-        pitchers_texto = []
+        # 🆕 Pitchers (alineados a la izquierda con espaciado fijo para evitar que se salgan)
+        x_pitchers = 35
+        y_pitchers = y + 195
+        
         if pitcher_g:
-            pitchers_texto.append(f"G: {pitcher_g}")
-        if pitcher_p:
-            pitchers_texto.append(f"P: {pitcher_p}")
-        if pitcher_s:
-            pitchers_texto.append(f"S: {pitcher_s}")
-        
-        # Calcular posición X para centrar los pitchers
-        total_pitchers_width = sum(len(p) * 12 for p in pitchers_texto) + len(pitchers_texto) * 20
-        x_inicio_pitchers = (ancho - total_pitchers_width) // 2
-        
-        # Dibujar cada pitcher con su color
-        x_actual = x_inicio_pitchers
-        for pitcher_info in pitchers_texto:
-            if pitcher_info.startswith("G:"):
-                color_pitcher = (76, 175, 80)  # Verde
-            elif pitcher_info.startswith("P:"):
-                color_pitcher = (244, 67, 54)  # Rojo
-            elif pitcher_info.startswith("S:"):
-                color_pitcher = (33, 150, 243)  # Azul
-            else:
-                color_pitcher = (200, 200, 200)
+            draw.text((x_pitchers, y_pitchers), f"G: {pitcher_g}", fill=(76, 175, 80), font=font_pitcher, anchor="lm")
+            x_pitchers += 160  # Espacio fijo generoso
             
-            draw.text((x_actual, y + 195), pitcher_info, fill=color_pitcher, font=font_pitcher, anchor="lm")
-            x_actual += len(pitcher_info) * 12 + 20
+        if pitcher_p:
+            draw.text((x_pitchers, y_pitchers), f"P: {pitcher_p}", fill=(244, 67, 54), font=font_pitcher, anchor="lm")
+            x_pitchers += 160
+            
+        if pitcher_s:
+            draw.text((x_pitchers, y_pitchers), f"S: {pitcher_s}", fill=(33, 150, 243), font=font_pitcher, anchor="lm")
     
     # 8. Footer
     draw.rectangle([80, alto-60, ancho-80, alto-20], fill=(20, 24, 82, 255))
