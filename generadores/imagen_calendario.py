@@ -3,6 +3,7 @@ from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
 from datetime import datetime
+import random
 
 # URL del logo del canal y de los equipos
 LOGO_CANAL = 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/logo_pag.png'
@@ -29,7 +30,7 @@ COLORES_EQUIPOS = {
     'magallanes': (91, 183, 230),       # Azul claro Magallanes
 }
 
-# 🆕 Logos de televisoras con URLs CORRECTAS (basadas en canales.js)
+# Logos de televisoras con URLs CORRECTAS (basadas en canales.js)
 LOGOS_TV = {
     'meridiano': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/meridianotv.png',
     'meridiano tv': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/meridianotv.png',
@@ -70,10 +71,10 @@ def detectar_equipo(nombre):
 def crear_imagen_calendario(juegos, fecha_hoy=None):
     """
     Crea una imagen VERTICAL de la jornada del día con tarjetas 
-    divididas por colores de equipo, exactamente como en la página web.
+    divididas por colores de equipo, centradas y con textura de fondo.
     """
     
-    # 1. Canvas VERTICAL más grande (600x1100) para tarjetas profesionales
+    # 1. Canvas VERTICAL (600x1100)
     ancho = 600
     alto = 1100
     img = Image.new('RGBA', (ancho, alto), (255, 255, 255, 255))
@@ -83,42 +84,60 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
     if not fecha_hoy:
         fecha_hoy = datetime.now().strftime('%d de %B').capitalize()
     
-    # 3. Borde dorado brillante
+    # 3. 🆕 Textura de fondo (pelotas de béisbol sutiles en transparencia)
+    random.seed(42)  # Para que el patrón sea siempre el mismo y no cambie en cada ejecución
+    for _ in range(15):
+        px = random.randint(40, ancho-40)
+        py = random.randint(140, alto-80)
+        pr = random.randint(15, 30)
+        # Círculo gris muy claro (sutil sobre el blanco)
+        draw.ellipse([px-pr, py-pr, px+pr, py+pr], fill=(245, 245, 245, 255))
+        # Costuras rojas tenues
+        draw.arc([px-pr+3, py-pr+3, px+pr-3, py+pr-3], start=45, end=135, fill=(220, 38, 38, 80), width=2)
+        draw.arc([px-pr+3, py-pr+3, px+pr-3, py+pr-3], start=225, end=315, fill=(220, 38, 38, 80), width=2)
+    
+    # 4. Borde dorado brillante
     draw.rectangle([0, 0, ancho-1, alto-1], outline=(255, 215, 0, 255), width=6)
     draw.rectangle([6, 6, ancho-7, alto-7], outline=(255, 215, 0, 180), width=3)
     
-    # 4. Cargar fuentes
+    # 5. Cargar fuentes
     try:
         font_titulo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
         font_fecha = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
         font_equipo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
-        font_hora = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
-        font_estadio = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
+        font_hora = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
+        font_estadio = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
         font_footer = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
     except:
         font_titulo = font_fecha = font_equipo = font_hora = font_estadio = font_footer = ImageFont.load_default()
     
-    # 5. Logo del canal en la esquina superior izquierda
+    # 6. Logo del canal en la esquina superior izquierda
     logo_canal = descargar_logo(LOGO_CANAL)
     if logo_canal:
         logo_canal = logo_canal.resize((50, 50), Image.Resampling.LANCZOS)
         img.paste(logo_canal, (15, 15), logo_canal)
     
-    # 6. 🆕 Título "JORNADA DEL DÍA" centrado arriba (SIN sombra duplicada)
-    draw.text((ancho//2, 80), "📅 JORNADA DEL DÍA", fill=(220, 38, 38), font=font_titulo, anchor="mm")
+    # 7. 🆕 Título SIN emoji (para evitar el cuadrito)
+    draw.text((ancho//2, 70), "JORNADA DEL DÍA", fill=(220, 38, 38), font=font_titulo, anchor="mm")
     
-    # 7. Fecha debajo del título
-    draw.text((ancho//2, 125), fecha_hoy, fill=(220, 38, 38), font=font_fecha, anchor="mm")
+    # 8. Fecha debajo del título
+    draw.text((ancho//2, 105), fecha_hoy, fill=(220, 38, 38), font=font_fecha, anchor="mm")
     
-    # 8. Línea separadora dorada
-    draw.line([(50, 155), (ancho-50, 155)], fill=(255, 215, 0, 255), width=3)
+    # 9. Línea separadora dorada
+    draw.line([(50, 135), (ancho-50, 135)], fill=(255, 215, 0, 255), width=3)
     
-    # 9. Dibujar cada juego como tarjeta individual
-    y_inicio = 180
-    altura_tarjeta = 200  # Más alta para que quepan logos grandes
+    # 10. 🆕 CÁLCULO DE CENTRADO VERTICAL (para 1, 2, 3 o 4 juegos)
+    num_juegos = min(len(juegos), 4)
+    altura_tarjeta = 200
     espacio_entre = 20
+    altura_total_tarjetas = (num_juegos * altura_tarjeta) + ((num_juegos - 1) * espacio_entre)
     
-    for i, juego in enumerate(juegos[:4]):  # Máximo 4 tarjetas para que quepan bien
+    # Espacio disponible (restando ~160px del header y ~80px del footer)
+    espacio_disponible = alto - 160 - 80
+    y_inicio = 160 + ((espacio_disponible - altura_total_tarjetas) // 2)
+    
+    # 11. Dibujar cada juego como tarjeta individual
+    for i, juego in enumerate(juegos[:4]):
         visitante = juego.get('visitante', '???')
         local = juego.get('local', '???')
         hora = juego.get('hora', 'Por definir')
@@ -131,7 +150,7 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
         color_visitante = COLORES_EQUIPOS.get(detectar_equipo(visitante), (150, 150, 150))
         color_local = COLORES_EQUIPOS.get(detectar_equipo(local), (150, 150, 150))
         
-        # Tarjeta con bordes redondeados y sombra
+        # Tarjeta con bordes redondeados
         draw.rectangle([20, y, ancho-20, y + altura_tarjeta], fill=(255, 255, 255, 255))
         draw.rectangle([20, y, ancho-20, y + altura_tarjeta], outline=(255, 215, 0, 200), width=2)
         
@@ -158,7 +177,7 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
             logo_local = logo_local.resize((80, 80), Image.Resampling.LANCZOS)
             img.paste(logo_local, (3*ancho//4 - 40, y + 25), logo_local)
         
-        # 🆕 Nombres de equipos: DETECTAR si el fondo es claro (Caribes) para usar texto negro
+        # Nombres de equipos: DETECTAR si el fondo es claro (Caribes) para usar texto negro
         es_visitante_claro = sum(color_visitante) / 3 > 200
         es_local_claro = sum(color_local) / 3 > 200
         
@@ -173,20 +192,19 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
         draw.ellipse([ancho//2 - 30, y + 55, ancho//2 + 30, y + 115], outline=(255, 215, 0, 255), width=3)
         draw.text((ancho//2, y + 85), "VS", fill=(220, 38, 38), font=font_equipo, anchor="mm")
         
-        # Franja inferior negra con hora y estadio
+        # 🆕 Franja inferior negra con texto BIEN SEPARADO (sin montarse)
         draw.rectangle([25, y + 135, ancho-25, y + altura_tarjeta - 5], fill=(20, 20, 20, 255))
         draw.rectangle([25, y + 135, ancho-25, y + altura_tarjeta - 5], outline=(255, 215, 0, 100), width=1)
         
-        # 🆕 Hora (sin emoji, solo texto para evitar cuadritos)
-        draw.text((35, y + 155), f"HORA: {hora}", fill=(255, 215, 0, 255), font=font_hora, anchor="lm")
+        # Hora (arriba a la izquierda)
+        draw.text((35, y + 150), f"HORA: {hora}", fill=(255, 215, 0, 255), font=font_hora, anchor="lm")
         
-        # 🆕 Estadio (sin emoji)
+        # Estadio (abajo al centro)
         if lugar:
-            draw.text((ancho//2, y + 155), f"ESTADIO: {lugar}", fill=(255, 255, 255, 255), font=font_estadio, anchor="mm")
+            draw.text((ancho//2, y + 175), f"ESTADIO: {lugar}", fill=(255, 255, 255, 255), font=font_estadio, anchor="mm")
         
-        # 🆕 Transmisión (abajo a la derecha) - CON LOGO DE TV si existe
+        # Transmisión (arriba a la derecha) - CON LOGO DE TV si existe
         if transmision and transmision != 'Por definir':
-            # Intentar descargar logo de TV
             logo_tv = None
             for tv_name, tv_url in LOGOS_TV.items():
                 if tv_name in transmision.lower():
@@ -194,18 +212,17 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
                     break
             
             if logo_tv:
-                logo_tv = logo_tv.resize((30, 30), Image.Resampling.LANCZOS)
-                img.paste(logo_tv, (ancho - 70, y + 150), logo_tv)
-                draw.text((ancho - 35, y + 165), transmision, fill=(255, 215, 0, 255), font=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12), anchor="mm")
+                logo_tv = logo_tv.resize((25, 25), Image.Resampling.LANCZOS)
+                img.paste(logo_tv, (ancho - 65, y + 142), logo_tv)
+                draw.text((ancho - 35, y + 155), transmision, fill=(255, 215, 0, 255), font=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 11), anchor="mm")
             else:
-                # Si no hay logo, solo texto sin emoji
-                draw.text((ancho - 35, y + 155), f"TV: {transmision}", fill=(255, 215, 0, 255), font=font_estadio, anchor="rm")
+                draw.text((ancho - 35, y + 150), f"TV: {transmision}", fill=(255, 215, 0, 255), font=font_estadio, anchor="rm")
     
-    # 10. Footer con información
+    # 12. Footer con información
     draw.rectangle([50, alto-70, ancho-50, alto-20], fill=(20, 24, 82, 255))
     draw.text((ancho//2, alto-45), "LVBP al Día - margus20.github.io", fill=(255, 255, 255, 255), font=font_footer, anchor="mm")
     
-    # 11. Guardar en memoria
+    # 13. Guardar en memoria
     img_byte_arr = BytesIO()
     img.save(img_byte_arr, format='PNG', quality=95)
     img_byte_arr.seek(0)
