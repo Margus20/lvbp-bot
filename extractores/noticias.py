@@ -1,62 +1,72 @@
 # extractores/noticias.py
 import requests
 import json5
-from io import BytesIO  # 🆕 Agregado para manejar la imagen en memoria
+from io import BytesIO
 from config import URLS_DATOS, HEADERS, TU_PAGINA
 
-def obtener_ultima_noticia():
-    """Extrae la última noticia del archivo noticias.js y su imagen"""
+def obtener_todas_las_noticias():
+    """
+    Extrae TODAS las noticias disponibles en el archivo noticias.js.
+    Devuelve una lista con cada noticia, su imagen real y su enlace.
+    """
     try:
-        # 1. Descargar el archivo JS
         respuesta = requests.get(URLS_DATOS['noticias'], headers=HEADERS, timeout=10)
         respuesta.raise_for_status()
         
-        # 2. Parsear con json5
         texto_js = respuesta.text
         texto_limpio = texto_js.replace('export const NOTICIAS = ', '').strip().rstrip(';')
         datos = json5.loads(texto_limpio)
         
-        if not datos:
-            return None
+        if not datos or not isinstance(datos, list):
+            return []
         
-        # 3. Tomar la última noticia (la más reciente)
-        noticia = datos[-1]
+        lista_noticias = []
         
-        titulo = noticia.get('titulo', 'Sin título')
-        tag = noticia.get('tag', 'LVBP')
-        fecha = noticia.get('fecha', '')
-        resumen = noticia.get('resumen', '')
-        imagen_url = noticia.get('imagen', '')  # 🆕 Obtenemos la URL de la imagen
-        
-        # 4. Formatear mensaje
-        mensaje = (
-            f"📰 <b>{titulo}</b>\n\n"
-            f"🏷️ {tag}\n"
-            f"📅 {fecha}\n\n"
-            f"{resumen[:250]}{'...' if len(resumen) > 250 else ''}\n\n"
-            f"🔗 Leer más: {TU_PAGINA}"
-        )
-        
-        # 5. 🆕 Descargar la imagen de la noticia (si existe)
-        imagen_bytes = None
-        if imagen_url and imagen_url.startswith('http'):
-            try:
-                resp_img = requests.get(imagen_url, headers=HEADERS, timeout=10)
-                if resp_img.status_code == 200 and len(resp_img.content) > 1000:
-                    imagen_bytes = BytesIO(resp_img.content)
-            except:
-                pass # Si falla la descarga, se enviará solo el texto (no rompe el bot)
-        
-        # ID único: el título de la noticia
-        id_unico = titulo.strip()
-        
-        # 6. 🆕 Devolver mensaje, ID y la imagen (si se pudo descargar)
-        resultado = {"mensaje": mensaje, "id": id_unico}
-        if imagen_bytes:
-            resultado["imagen"] = imagen_bytes
+        # Recorremos todas las noticias (o las primeras 5 para no saturar)
+        for noticia in datos[:5]: 
+            titulo = noticia.get('titulo', 'Sin título')
+            fecha = noticia.get('fecha', '')
+            imagen_url = noticia.get('imagen', '')
             
-        return resultado
+            # Creamos un resumen corto desde el contenido HTML
+            contenido_crudo = noticia.get('contenido', '')
+            resumen_limpio = contenido_crudo.replace('<p>', '').replace('</p>', ' ').replace('<strong>', '').replace('</strong>', '')
+            resumen_corto = resumen_limpio[:150] + ('...' if len(resumen_limpio) > 150 else '')
+            
+            # Mensaje con enlace directo a la página
+            mensaje = (
+                f"📰 <b>{titulo}</b>\n"
+                f"📅 {fecha}\n\n"
+                f"{resumen_corto}\n\n"
+                f"🔗 <b>Leer noticia completa:</b> {TU_PAGINA}"
+            )
+            
+            # Descargar la imagen real de la noticia
+            imagen_bytes = None
+            if imagen_url and imagen_url.startswith('http'):
+                try:
+                    resp_img = requests.get(imagen_url, headers=HEADERS, timeout=10)
+                    if resp_img.status_code == 200 and len(resp_img.content) > 1000:
+                        imagen_bytes = BytesIO(resp_img.content)
+                except:
+                    pass
+            
+            # ID único para control
+            id_unico = f"{titulo.strip()}_{fecha}".replace(" ", "_")
+            
+            lista_noticias.append({
+                "mensaje": mensaje, 
+                "id": id_unico,
+                "imagen": imagen_bytes
+            })
+            
+        return lista_noticias
         
     except Exception as e:
         print(f"❌ Error al extraer noticias: {e}")
-        return None
+        return []
+
+# Compatibilidad
+def obtener_ultima_noticia():
+    noticias = obtener_todas_las_noticias()
+    return noticias[0] if noticias else None
