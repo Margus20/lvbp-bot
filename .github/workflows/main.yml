@@ -2,9 +2,9 @@ name: Publicar noticias LVBP
 
 on:
   schedule:
-    # Cada 6 horas: 00:00, 06:00, 12:00, 18:00 UTC
-    - cron: '0 0,6,12,18 * * *'
-  workflow_dispatch: # Permite ejecutarlo manualmente desde la pestaña Actions
+    # Se ejecuta una vez al día a las 16:00 UTC, que equivale a las 12:00 PM (Mediodía) en Venezuela (UTC-4)
+    - cron: '0 16 * * *'
+  workflow_dispatch: # Permite ejecutarlo manualmente desde la pestaña Actions para hacer pruebas
 
 permissions:
   contents: write
@@ -39,12 +39,12 @@ jobs:
         run: |
           # Crear vistos.json con la estructura correcta si no existe
           if [ ! -f vistos.json ]; then
-            echo '{"noticias": [], "resultados": [], "posiciones": "", "calendario": "", "estadisticas": ""}' > vistos.json
-            echo "⚠️ vistos.json no existía. Se creó automáticamente."
+            echo '{"resultados": [], "posiciones": "", "calendario": "", "noticias_ids": [], "estadisticas": "", "fecha_publicidad": null, "fecha_noticias": null, "fecha_estadisticas": null}' > vistos.json
+            echo "⚠️ vistos.json no existía. Se creó automáticamente con la estructura actualizada."
           fi
           
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add vistos.json
-          git commit -m "🤖 Actualizar historial de publicaciones del bot" || echo "Sin cambios en vistos.json"
+          git commit -m "🤖 Actualizar historial de publicaciones del bot (vistos.json)" || echo "Sin cambios en vistos.json"
           git push
