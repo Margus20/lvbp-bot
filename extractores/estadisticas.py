@@ -4,7 +4,10 @@ import json5
 from config import URLS_DATOS, HEADERS, TU_PAGINA
 
 def obtener_lideres_estadisticas():
-    """Extrae los líderes estadísticos del archivo lideres.js"""
+    """
+    Extrae TODOS los líderes estadísticos del archivo lideres.js
+    y los devuelve en un formato que el generador pueda usar.
+    """
     try:
         # 1. Descargar el archivo JS
         respuesta = requests.get(URLS_DATOS['lideres'], headers=HEADERS, timeout=10)
@@ -15,50 +18,35 @@ def obtener_lideres_estadisticas():
         texto_limpio = texto_js.replace('export const LIDERES = ', '').strip().rstrip(';')
         datos = json5.loads(texto_limpio)
         
-        if not datos:
+        if not datos or not isinstance(datos, dict):
             return None
         
-        # 3. Formatear mensaje
+        # 3. Formatear mensaje de texto (resumen)
         mensaje = "📊 <b>LÍDERES ESTADÍSTICOS LVBP</b>\n\n"
         
-        # Carreras Anotadas
-        if 'carreras' in datos and datos['carreras']:
-            lider_carreras = datos['carreras'][0]
-            mensaje += (
-                f"🏃 <b>CARRERAS:</b>\n"
-                f"   {lider_carreras.get('nombre')} ({lider_carreras.get('valor')})\n\n"
-            )
+        categorias_resumen = {
+            'hr': '💥 Jonrones',
+            'average': '🏏 Average',
+            'ci': '🎯 Carreras Impulsadas',
+            'era': ' Efectividad',
+            'hits': '📈 Hits'
+        }
         
-        # Average de Bateo
-        if 'average' in datos and datos['average']:
-            lider_average = datos['average'][0]
-            mensaje += (
-                f"🏏 <b>AVERAGE:</b>\n"
-                f"   {lider_average.get('nombre')} ({lider_average.get('valor')})\n\n"
-            )
+        for cat_key, cat_nombre in categorias_resumen.items():
+            if cat_key in datos and datos[cat_key]:
+                lider = datos[cat_key][0]
+                mensaje += f"{cat_nombre}: <b>{lider.get('nombre')}</b> ({lider.get('valor')})\n"
         
-        # Jonrones
-        if 'hr' in datos and datos['hr']:
-            lider_hr = datos['hr'][0]
-            mensaje += (
-                f"💥 <b>JONRONES:</b>\n"
-                f"   {lider_hr.get('nombre')} ({lider_hr.get('valor')})\n\n"
-            )
+        mensaje += f"\n🔗 Ver estadísticas completas: {TU_PAGINA}#estadisticas"
         
-        # Efectividad (Pitchers)
-        if 'era' in datos and datos['era']:
-            lider_era = datos['era'][0]
-            mensaje += (
-                f"🎯 <b>EFECTIVIDAD:</b>\n"
-                f"   {lider_era.get('nombre')} ({lider_era.get('valor')})\n\n"
-            )
+        # 4. ID único basado en los líderes principales
+        id_unico = f"ESTADISTICAS_{datos.get('hr', [{}])[0].get('nombre', '')}"
         
-        mensaje += f"🔗 Ver estadísticas completas: {TU_PAGINA}#estadisticas"
-        
-        # ID único: combinamos los nombres de los líderes
-        id_unico = f"{datos.get('carreras', [{}])[0].get('nombre', '')}_ERA"
-        
-        return {"mensaje": mensaje, "id": id_unico}
+        return {
+            "mensaje": mensaje, 
+            "id": id_unico,
+            "datos_completos": datos  # Para que el generador cree la imagen
+        }
         
     except Exception as e:
         print(f"❌ Error al extraer estadísticas: {e}")
