@@ -196,24 +196,26 @@ def main():
     print("-" * 50)
 
     # ==========================================
-    # 7. PUBLICIDAD (CONTROLADA: 1 VEZ POR DÍA - DOBLE P)
+    # 7. PUBLICIDAD (TODAS, 1 VEZ POR DÍA - DOBLE P)
     # ==========================================
     print("📢 Revisando publicidad (usando módulo 'ppublicidad' con doble P)...")
     
     if vistos.get("fecha_publicidad") != hoy_fecha:
-        # Aquí usamos explícitamente el módulo ppublicidad que funciona
         lista_publicidades = ppublicidad.obtener_todas_las_publicidades()
         if lista_publicidades:
-            pub_elegida = random.choice(lista_publicidades)
-            print(f"   📢 Enviando publicidad: {pub_elegida.get('mensaje', 'Anuncio')[:30]}...")
-            
-            if "imagen" in pub_elegida:
-                enviar_imagen_a_telegram(pub_elegida["imagen"], pub_elegida["mensaje"])
-            else:
-                enviar_texto_a_telegram(pub_elegida["mensaje"])
+            print(f"✅ {len(lista_publicidades)} publicidades detectadas. Publicando TODAS...")
+            for i, pub in enumerate(lista_publicidades, 1):
+                print(f"   📢 Enviando publicidad {i}/{len(lista_publicidades)}...")
+                
+                if "imagen" in pub:
+                    enviar_imagen_a_telegram(pub["imagen"], pub["mensaje"])
+                else:
+                    enviar_texto_a_telegram(pub["mensaje"])
+                
+                time.sleep(2)  # Pausa de 2 segundos entre publicidades para no saturar
                 
             vistos["fecha_publicidad"] = hoy_fecha
-            print("   ✅ Publicidad enviada (1 vez por día).")
+            print("   ✅ TODAS las publicidades enviadas (1 vez por día).")
     else:
         print("   ⏭️ Publicidad omitida (ya se publicó hoy).")
     print("-" * 50)
