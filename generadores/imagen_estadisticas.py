@@ -5,29 +5,19 @@ from io import BytesIO
 
 # Colores por categoría (fondos)
 COLORES_CATEGORIAS = {
-    'carreras': (180, 50, 50),      # Rojo oscuro
-    'average': (20, 24, 82),        # Azul oscuro
-    'hr': (180, 130, 0),            # Dorado/Mostaza
-    'era': (25, 135, 84),           # Verde
-    'ci': (139, 0, 0),              # Rojo vino
-    'slg': (139, 119, 0),           # Dorado oscuro
-    'ops': (0, 50, 100),            # Azul marino
-    'hits': (139, 0, 0),            # Rojo
-    'dobles': (139, 119, 0),        # Dorado
-    'triples': (0, 50, 100),        # Azul
+    'jonrones': (180, 130, 0),            # Dorado/Mostaza
+    'average': (20, 24, 82),              # Azul oscuro
+    'impulsadas': (139, 0, 0),            # Rojo vino
+    'efectividad': (25, 135, 84),         # Verde
+    'hits': (139, 0, 0),                  # Rojo
 }
 
 NOMBRES_CATEGORIAS = {
-    'carreras': 'Carreras (C)',
+    'jonrones': 'Jonrones (HR)',
     'average': 'Average (AVG)',
-    'hr': 'Jonrones (HR)',
-    'era': 'Efectividad (ERA)',
-    'ci': 'Carreras Impulsadas (CI)',
-    'slg': 'Slugging (SLG)',
-    'ops': 'OPS',
+    'impulsadas': 'Carreras Impulsadas (CI)',
+    'efectividad': 'Efectividad (ERA)',
     'hits': 'Hits (H)',
-    'dobles': 'Dobles (2B)',
-    'triples': 'Triples (3B)',
 }
 
 def descargar_foto_jugador(url):
@@ -45,9 +35,9 @@ def crear_imagen_estadisticas(lideres):
     Crea una imagen VERTICAL con las principales categorías estadísticas
     mostrando el TOP 3 de cada una.
     """
-    # Canvas vertical grande (600x1200)
+    # Canvas vertical grande (600x1000)
     ancho = 600
-    alto = 1200
+    alto = 1000
     img = Image.new('RGBA', (ancho, alto), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
@@ -66,27 +56,26 @@ def crear_imagen_estadisticas(lideres):
     try:
         font_titulo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
         font_categoria = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
-        font_jugador = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+        font_jugador = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
         font_valor = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
         font_numero = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
         font_footer = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
     except:
         font_titulo = font_categoria = font_jugador = font_valor = font_numero = font_footer = ImageFont.load_default()
     
-    # Título
-    draw.text((ancho//2 + 1, 51), "📊 LÍDERES ESTADÍSTICOS LVBP", fill=(0, 0, 0, 150), font=font_titulo, anchor="mm")
-    draw.text((ancho//2, 50), " LÍDERES ESTADÍSTICOS LVBP", fill=(255, 215, 0, 255), font=font_titulo, anchor="mm")
+    # Título (SIN sombra duplicada)
+    draw.text((ancho//2, 50), "📊 LÍDERES ESTADÍSTICOS LVBP", fill=(255, 215, 0, 255), font=font_titulo, anchor="mm")
     
     # Línea separadora
     draw.line([(50, 90), (ancho-50, 90)], fill=(255, 215, 0, 255), width=2)
     
     # Posición inicial
     y_actual = 110
-    altura_categoria = 180
+    altura_categoria = 160
     espacio_entre = 20
     
-    # Categorías a mostrar (máximo 5 para que quepan bien)
-    categorias_principales = ['hr', 'average', 'ci', 'era', 'hits']
+    # Categorías a mostrar (usando las claves exactas de lideres.js)
+    categorias_principales = ['jonrones', 'average', 'impulsadas', 'efectividad', 'hits']
     
     for categoria in categorias_principales:
         if categoria not in lideres or not lideres[categoria]:
@@ -112,26 +101,17 @@ def crear_imagen_estadisticas(lideres):
             y_jugador = y_actual + 70
             
             # Número de posición (círculo dorado)
-            draw.ellipse([x - 25, y_jugador - 25, x + 25, y_jugador + 25], fill=(255, 215, 0, 255))
+            draw.ellipse([x - 20, y_jugador - 20, x + 20, y_jugador + 20], fill=(255, 215, 0, 255))
             draw.text((x, y_jugador), f"#{i+1}", fill=(0, 0, 0, 255), font=font_numero, anchor="mm")
-            
-            # Foto del jugador (si hay URL)
-            foto_url = jugador.get('foto', '')
-            if foto_url:
-                foto = descargar_foto_jugador(foto_url)
-                if foto:
-                    foto = foto.resize((50, 50), Image.Resampling.LANCZOS)
-                    img.paste(foto, (x - 25, y_jugador + 15), foto)
             
             # Nombre del jugador (abreviado)
             nombre = jugador.get('nombre', 'Desconocido')
-            # Extraer solo el apellido o nombre corto
-            nombre_corto = nombre.split()[0][:12].upper() if nombre else 'N/A'
-            draw.text((x, y_jugador + 80), nombre_corto, fill=(255, 255, 255, 255), font=font_jugador, anchor="mm")
+            nombre_corto = nombre.split()[0][:10].upper() if nombre else 'N/A'
+            draw.text((x, y_jugador + 35), nombre_corto, fill=(255, 255, 255, 255), font=font_jugador, anchor="mm")
             
             # Valor estadístico
             valor = str(jugador.get('valor', '0'))
-            draw.text((x, y_jugador + 110), valor, fill=(255, 215, 0, 255), font=font_valor, anchor="mm")
+            draw.text((x, y_jugador + 65), valor, fill=(255, 215, 0, 255), font=font_valor, anchor="mm")
         
         y_actual += altura_categoria + espacio_entre
     
