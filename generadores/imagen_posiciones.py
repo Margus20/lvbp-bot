@@ -2,6 +2,7 @@
 from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
+import random  # 🆕 Agregado para la textura de fondo
 
 # URL del logo del canal y de los equipos
 LOGO_CANAL = 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/logo_pag.png'
@@ -56,48 +57,62 @@ def detectar_equipo(nombre):
             return equipo
     return 'magallanes'
 
+# 🆕 Función para dibujar la textura de pelotas
+def dibujar_pelota_béisbol(draw, x, y, radio):
+    """Dibuja una pelota de béisbol sutil en el fondo"""
+    draw.ellipse([x-radio, y-radio, x+radio, y+radio], fill=(245, 245, 245, 255))
+    draw.arc([x-radio+3, y-radio+3, x+radio-3, y+radio-3], start=45, end=135, fill=(220, 38, 38, 80), width=2)
+    draw.arc([x-radio+3, y-radio+3, x+radio-3, y+radio-3], start=225, end=315, fill=(220, 38, 38, 80), width=2)
+
 def crear_imagen_posiciones(posiciones):
     """
-    Crea una imagen VERTICAL de la tabla de posiciones 
-    con los colores exactos de cada equipo y todas las columnas estadísticas.
+    Crea una imagen VERTICAL de la tabla de posiciones centrada, 
+    con textura de fondo y textos limpios sin sombras.
     """
     
-    # 1. Canvas más grande para acomodar todas las columnas (650x950)
+    # 1. Canvas (650x1000 para mejor centrado vertical)
     ancho = 650
-    alto = 950
+    alto = 1000
     img = Image.new('RGBA', (ancho, alto), (255, 255, 255, 255))
     draw = ImageDraw.Draw(img)
     
     # 2. Fondo blanco
     draw.rectangle([0, 0, ancho, alto], fill=(255, 255, 255, 255))
     
-    # 3. Borde dorado brillante
+    # 3. 🆕 Textura de fondo (pelotas de béisbol sutiles en el blanco)
+    random.seed(42)  # Para que el patrón sea siempre el mismo y elegante
+    for _ in range(15):
+        px = random.randint(40, ancho-40)
+        py = random.randint(140, alto-80)
+        pr = random.randint(15, 30)
+        dibujar_pelota_béisbol(draw, px, py, pr)
+    
+    # 4. Borde dorado brillante
     draw.rectangle([0, 0, ancho-1, alto-1], outline=(255, 215, 0, 255), width=6)
     draw.rectangle([6, 6, ancho-7, alto-7], outline=(255, 215, 0, 180), width=3)
     
-    # 4. Cargar fuentes
+    # 5. Cargar fuentes
     try:
         font_titulo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
         font_header = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
-        font_equipo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
+        font_equipo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)  # 🆕 Ya era Bold, se mantiene
         font_numero = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
-        font_stats = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
+        font_stats = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)  # 🆕 Cambiado a Bold para que se aprecien bien
         font_footer = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
     except:
         font_titulo = font_header = font_equipo = font_numero = font_stats = font_footer = ImageFont.load_default()
     
-    # 5. Logo del canal en la esquina superior izquierda
+    # 6. Logo del canal en la esquina superior izquierda
     logo_canal = descargar_logo()
     if logo_canal:
         logo_canal = logo_canal.resize((50, 50), Image.Resampling.LANCZOS)
         img.paste(logo_canal, (15, 15), logo_canal)
     
-    # 6. Título
-    draw.text((ancho//2 + 1, 81), "🏆 TABLA DE POSICIONES LVBP", fill=(0, 0, 0, 150), font=font_titulo, anchor="mm")
-    draw.text((ancho//2, 80), " TABLA DE POSICIONES LVBP", fill=(220, 38, 38), font=font_titulo, anchor="mm")
+    # 7. 🆕 Título SIN emoji y SIN sombra duplicada
+    draw.text((ancho//2, 80), "TABLA DE POSICIONES LVBP", fill=(220, 38, 38), font=font_titulo, anchor="mm")
     
-    # 7. Header de columnas (fondo dorado)
-    y_header = 130
+    # 8. Header de columnas (fondo dorado)
+    y_header = 120
     draw.rectangle([20, y_header, ancho-20, y_header + 40], fill=(255, 215, 0, 255))
     
     # Columnas del header
@@ -110,10 +125,20 @@ def crear_imagen_posiciones(posiciones):
     # Línea separadora
     draw.line([(20, y_header + 40), (ancho-20, y_header + 40)], fill=(255, 215, 0, 255), width=2)
     
-    # 8. Dibujar cada equipo (máximo 8)
-    y_inicio = 180
+    # 9. 🆕 CÁLCULO DE CENTRADO VERTICAL
+    num_equipos = len(posiciones[:8])
     altura_fila = 65
+    altura_total_filas = num_equipos * altura_fila
     
+    # Espacio disponible (desde debajo del header hasta arriba del footer)
+    y_top = y_header + 45
+    y_bottom = alto - 60
+    espacio_disponible = y_bottom - y_top
+    
+    # Calcular Y inicial para centrar el bloque de filas
+    y_inicio = y_top + ((espacio_disponible - altura_total_filas) // 2)
+    
+    # 10. Dibujar cada equipo (máximo 8)
     for i, equipo in enumerate(posiciones[:8]):
         nombre = str(equipo.get('nombre', 'Equipo'))
         equipo_key = detectar_equipo(nombre)
@@ -144,7 +169,7 @@ def crear_imagen_posiciones(posiciones):
         
         y = y_inicio + (i * altura_fila)
         
-        # Fondo de la fila con el color del equipo
+        # Fondo de la fila con el color del equipo (tapa la textura de atrás, ¡perfecto!)
         draw.rectangle([20, y, ancho-20, y + 60], fill=color_equipo)
         
         # Borde inferior blanco para separar filas
@@ -161,29 +186,26 @@ def crear_imagen_posiciones(posiciones):
             logo_equipo = logo_equipo.resize((35, 35), Image.Resampling.LANCZOS)
             img.paste(logo_equipo, (70, y + 12), logo_equipo)
         
-        # Nombre del equipo (texto blanco con sombra negra)
-        draw.text((115, y + 31), nombre_corto, fill=(0, 0, 0, 180), font=font_equipo, anchor="lm")
-        draw.text((113, y + 30), nombre_corto, fill=(255, 255, 255, 255), font=font_equipo, anchor="lm")
+        # 🆕 DETECTAR si el fondo es claro (Caribes) para usar texto negro en TODO
+        es_fondo_claro = sum(color_equipo) / 3 > 200
+        color_texto = (0, 0, 0) if es_fondo_claro else (255, 255, 255)
         
-        # Estadísticas (texto blanco centrado en cada columna)
-        # JJ
-        draw.text((x_positions[2], y + 30), jj, fill=(255, 255, 255, 255), font=font_stats, anchor="mm")
-        # JG
-        draw.text((x_positions[3], y + 30), jg, fill=(255, 255, 255, 255), font=font_stats, anchor="mm")
-        # JP
-        draw.text((x_positions[4], y + 30), jp, fill=(255, 255, 255, 255), font=font_stats, anchor="mm")
-        # PCT
-        draw.text((x_positions[5], y + 30), pct, fill=(255, 255, 255, 255), font=font_stats, anchor="mm")
-        # DIF
-        draw.text((x_positions[6], y + 30), dif, fill=(255, 255, 255, 255), font=font_stats, anchor="mm")
-        # RACHA
-        draw.text((x_positions[7], y + 30), racha, fill=(255, 255, 255, 255), font=font_stats, anchor="mm")
+        # Nombre del equipo: 🆕 SIN sombra, solo texto puro y limpio
+        draw.text((115, y + 28), nombre_corto, fill=color_texto, font=font_equipo, anchor="lm")
+        
+        # 🆕 Estadísticas en negrita (font_stats Bold) y con el color de contraste correcto
+        draw.text((x_positions[2], y + 28), jj, fill=color_texto, font=font_stats, anchor="mm")
+        draw.text((x_positions[3], y + 28), jg, fill=color_texto, font=font_stats, anchor="mm")
+        draw.text((x_positions[4], y + 28), jp, fill=color_texto, font=font_stats, anchor="mm")
+        draw.text((x_positions[5], y + 28), pct, fill=color_texto, font=font_stats, anchor="mm")
+        draw.text((x_positions[6], y + 28), dif, fill=color_texto, font=font_stats, anchor="mm")
+        draw.text((x_positions[7], y + 28), racha, fill=color_texto, font=font_stats, anchor="mm")
     
-    # 9. Footer
+    # 11. Footer
     draw.rectangle([20, alto-60, ancho-20, alto-20], fill=(20, 24, 82, 255))
     draw.text((ancho//2, alto-40), "LVBP al Día - margus20.github.io", fill=(255, 255, 255, 255), font=font_footer, anchor="mm")
     
-    # 10. Guardar en memoria
+    # 12. Guardar en memoria
     img_byte_arr = BytesIO()
     img.save(img_byte_arr, format='PNG', quality=95)
     img_byte_arr.seek(0)
