@@ -65,7 +65,7 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
         font_titulo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
         font_fecha = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
         font_hora = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
-        font_equipo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18)
+        font_equipo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
         font_detalle = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
     except:
         font_titulo = font_fecha = font_hora = font_equipo = font_detalle = ImageFont.load_default()
@@ -86,7 +86,7 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
     # 8. Línea separadora dorada
     draw.line([(50, 175), (450, 175)], fill=(255, 215, 0, 255), width=3)
     
-    # 9. Dibujar cada juego (máximo 5 para que quepan bien)
+    # 9. Dibujar cada juego (máximo 5 para que quepan bien en formato vertical)
     y_inicio = 200
     altura_juego = 110
     
@@ -99,34 +99,31 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
         
         y = y_inicio + (i * altura_juego)
         
-        # Fondo del juego (gris muy claro con borde)
-        draw.rounded_rectangle([20, y, 480, y + 95], radius=10, fill=(245, 245, 245, 255))
-        draw.rounded_rectangle([20, y, 480, y + 95], radius=10, outline=(200, 200, 200, 255), width=2)
+        # 🆕 Fondo del juego: Amarillo mostaza oscuro para excelente contraste con letras blancas
+        draw.rounded_rectangle([20, y, 480, y + 100], radius=12, fill=(180, 130, 0, 255))
+        draw.rounded_rectangle([20, y, 480, y + 100], radius=12, outline=(220, 170, 0, 255), width=2)
         
-        # Línea roja decorativa a la izquierda
-        draw.rounded_rectangle([20, y, 28, y + 95], radius=5, fill=(211, 47, 47, 255))
-        
-        # Hora (arriba a la izquierda, en azul)
-        draw.text((40, y + 20), f"🕐 {hora}", fill=(20, 24, 82, 255), font=font_hora, anchor="lm")
-        
-        # 🆕 Descargar y pegar logos de los equipos (tamaño 35x35)
+        # 🆕 Descargar y pegar logos de los equipos (tamaño 35x35, a los extremos para no tapar texto)
         url_logo_vis = LOGOS_EQUIPOS.get(detectar_equipo(visitante), LOGO_CANAL)
         logo_visitante = descargar_logo(url_logo_vis)
         if logo_visitante:
             logo_visitante = logo_visitante.resize((35, 35), Image.Resampling.LANCZOS)
-            img.paste(logo_visitante, (130, y + 8), logo_visitante)
+            img.paste(logo_visitante, (30, y + 10), logo_visitante)
             
         url_logo_loc = LOGOS_EQUIPOS.get(detectar_equipo(local), LOGO_CANAL)
         logo_local = descargar_logo(url_logo_loc)
         if logo_local:
             logo_local = logo_local.resize((35, 35), Image.Resampling.LANCZOS)
-            img.paste(logo_local, (330, y + 8), logo_local)
+            img.paste(logo_local, (435, y + 10), logo_local)
         
-        # Equipos (centro, ajustado un poco hacia abajo para no tapar los logos)
-        equipos_texto = f"{visitante} vs {local}"
-        draw.text((250, y + 50), equipos_texto, fill=(0, 0, 0, 255), font=font_equipo, anchor="mm")
+        # 🆕 Hora (arriba centrada, en blanco)
+        draw.text((250, y + 15), f"🕐 {hora}", fill=(255, 255, 255, 255), font=font_hora, anchor="mm")
         
-        # Detalles (estadio y transmisión)
+        # 🆕 Equipos (centro, en blanco, fuente ajustada para evitar solapamiento con logos)
+        equipos_texto = f"{visitante}  VS  {local}"
+        draw.text((250, y + 45), equipos_texto, fill=(255, 255, 255, 255), font=font_detalle, anchor="mm")
+        
+        # 🆕 Detalles (estadio y transmisión, en blanco con ligera transparencia)
         detalles = []
         if lugar:
             detalles.append(f"🏟️ {lugar}")
@@ -134,8 +131,8 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
             detalles.append(f"📺 {transmision}")
         
         if detalles:
-            detalles_texto = " | ".join(detalles)
-            draw.text((250, y + 78), detalles_texto, fill=(100, 100, 100, 255), font=font_detalle, anchor="mm")
+            detalles_texto = " • ".join(detalles)
+            draw.text((250, y + 75), detalles_texto, fill=(255, 255, 255, 230), font=font_detalle, anchor="mm")
     
     # 10. Footer con información
     draw.rounded_rectangle([50, 730, 450, 780], radius=15, fill=(20, 24, 82, 255))
