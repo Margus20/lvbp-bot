@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import requests
 from io import BytesIO
 from datetime import datetime, timedelta
-import random  # 🆕 Agregado para la textura de fondo
+import random
 
 # URLs de los logos desde tu repositorio lvbp-stats
 LOGOS = {
@@ -28,6 +28,14 @@ COLORES_FONDO = {
     'aguilas': (249, 97, 0),            # Naranja
     'tiburones': (41, 41, 249),         # Azul eléctrico
     'magallanes': (91, 183, 230),       # Azul claro
+}
+
+#  Diccionario para traducir meses al español
+MESES_ES = {
+    'January': 'Enero', 'February': 'Febrero', 'March': 'Marzo',
+    'April': 'Abril', 'May': 'Mayo', 'June': 'Junio',
+    'July': 'Julio', 'August': 'Agosto', 'September': 'Septiembre',
+    'October': 'Octubre', 'November': 'Noviembre', 'December': 'Diciembre'
 }
 
 def detectar_equipo(nombre):
@@ -59,10 +67,10 @@ def descargar_logo(equipo_key):
         pass
     return None
 
-# 🆕 Función para dibujar la textura de pelotas
+# Función para dibujar la textura de pelotas
 def dibujar_pelota_béisbol(draw, x, y, radio):
     """Dibuja una pelota de béisbol sutil en el fondo"""
-    draw.ellipse([x-radio, y-radio, x+radio, y+radio], fill=(245, 245, 245, 255))
+    draw.ellipse([x-radio, y-radio, x+radio, y+radio], fill=(255, 255, 255, 255))
     draw.arc([x-radio+3, y-radio+3, x+radio-3, y+radio-3], start=45, end=135, fill=(220, 38, 38, 80), width=2)
     draw.arc([x-radio+3, y-radio+3, x+radio-3, y+radio-3], start=225, end=315, fill=(220, 38, 38, 80), width=2)
 
@@ -72,18 +80,19 @@ def crear_imagen_resultados(juegos, fecha_hoy=None):
     centrados verticalmente y con textura de fondo.
     """
     
-    # 1. Canvas vertical un poco más alto (1200) para que 4 juegos quepan con holgura al centrarse
+    # 1. Canvas vertical (650x1200)
     ancho = 650
     alto = 1200
-    img = Image.new('RGBA', (ancho, alto), (255, 255, 255, 255))
+    # Fondo gris suave
+    img = Image.new('RGBA', (ancho, alto), (230, 230, 230, 255))
     draw = ImageDraw.Draw(img)
     
-    # 2. 🆕 Textura de fondo (pelotas de béisbol sutiles en el blanco)
-    random.seed(42)  # Para que el patrón sea siempre el mismo y elegante
-    for _ in range(15):
+    # 2. Textura de fondo (75 pelotas - 5 veces más)
+    random.seed(42)
+    for _ in range(75):
         px = random.randint(40, ancho-40)
         py = random.randint(140, alto-80)
-        pr = random.randint(15, 30)
+        pr = random.randint(12, 28)
         dibujar_pelota_béisbol(draw, px, py, pr)
     
     # 3. Borde dorado brillante
@@ -111,27 +120,28 @@ def crear_imagen_resultados(juegos, fecha_hoy=None):
     # 6. Título (SIN emoji y SIN sombra duplicada)
     draw.text((ancho//2, 70), "RESULTADOS", fill=(220, 38, 38), font=font_titulo, anchor="mm")
     
-    # 7. Fecha: por defecto usa la fecha de ayer (cuando fueron los juegos)
-    if not fecha_hoy:
-        fecha_ayer = datetime.now() - timedelta(days=1)
-        fecha_hoy = fecha_ayer.strftime('%d de %B de %Y').capitalize()
-    draw.text((ancho//2, 105), fecha_hoy, fill=(220, 38, 38), font=font_fecha, anchor="mm")
+    # 🆕 7. Fecha SIEMPRE de ayer y TRADUCIDA al español
+    fecha_ayer = datetime.now() - timedelta(days=1)
+    fecha_en = fecha_ayer.strftime('%d de %B de %Y').capitalize()
+    # Traducir mes de inglés a español
+    for mes_en, mes_es in MESES_ES.items():
+        fecha_en = fecha_en.replace(mes_en, mes_es)
+    draw.text((ancho//2, 105), fecha_en, fill=(220, 38, 38), font=font_fecha, anchor="mm")
     
     # Línea separadora dorada
     draw.line([(50, 130), (ancho-50, 130)], fill=(255, 215, 0, 255), width=3)
     
-    # 8. 🆕 CÁLCULO DE CENTRADO VERTICAL
+    # 8. CÁLCULO DE CENTRADO VERTICAL
     num_juegos = len(juegos[:4])
     altura_tarjeta = 220
     espacio_entre = 20
     altura_total_tarjetas = (num_juegos * altura_tarjeta) + ((num_juegos - 1) * espacio_entre)
     
-    # Espacio disponible (restando ~150px del header y ~70px del footer)
     espacio_disponible = alto - 150 - 70
     y_inicio = 150 + ((espacio_disponible - altura_total_tarjetas) // 2)
     
     # 9. Dibujar cada juego como tarjeta profesional
-    for i, juego in enumerate(juegos[:4]):  # Máximo 4 juegos
+    for i, juego in enumerate(juegos[:4]):
         visitante = juego.get('visitante', '???')
         local = juego.get('local', '???')
         score_vis = str(juego.get('scoreVisitante', '0'))
@@ -150,18 +160,13 @@ def crear_imagen_resultados(juegos, fecha_hoy=None):
         color_vis = COLORES_FONDO.get(detectar_equipo(visitante), (100, 100, 100))
         color_loc = COLORES_FONDO.get(detectar_equipo(local), (100, 100, 100))
         
-        # Tarjeta con bordes redondeados (El fondo blanco sólido tapa la textura de atrás, ¡perfecto!)
+        # Tarjeta con fondo blanco sólido (tapa la textura de atrás)
         draw.rectangle([20, y, ancho-20, y + altura_tarjeta], fill=(255, 255, 255, 255))
         draw.rectangle([20, y, ancho-20, y + altura_tarjeta], outline=(255, 215, 0, 200), width=2)
         
         # === PARTE SUPERIOR: EQUIPOS ===
-        # Mitad izquierda (Visitante)
         draw.rectangle([25, y + 5, ancho//2 - 5, y + 115], fill=color_vis)
-        
-        # Mitad derecha (Local)
         draw.rectangle([ancho//2 + 5, y + 5, ancho-25, y + 115], fill=color_loc)
-        
-        # Línea divisoria dorada
         draw.line([(ancho//2, y + 5), (ancho//2, y + 115)], fill=(255, 215, 0, 255), width=3)
         
         # Logo visitante (grande 90x90)
@@ -176,7 +181,7 @@ def crear_imagen_resultados(juegos, fecha_hoy=None):
             logo_loc = logo_loc.resize((90, 90), Image.Resampling.LANCZOS)
             img.paste(logo_loc, (3*ancho//4 - 45, y + 10), logo_loc)
         
-        # Nombres de equipos: DETECTAR si el fondo es claro (Caribes) para usar texto negro
+        # Nombres de equipos
         es_visitante_claro = sum(color_vis) / 3 > 200
         es_local_claro = sum(color_loc) / 3 > 200
         
@@ -200,27 +205,24 @@ def crear_imagen_resultados(juegos, fecha_hoy=None):
         draw.text((ancho//2, y + 150), "-", fill=(255, 255, 255, 255), font=font_marcador, anchor="mm")
         draw.text((ancho//2 + 30, y + 150), score_loc, fill=(255, 215, 0, 255), font=font_marcador, anchor="lm")
         
-        # Innings en una sola línea (esquina superior derecha de la franja)
+        # Innings en una sola línea
         innings_texto = f"{innings} INNINGS"
         draw.text((ancho - 35, y + 128), innings_texto, fill=(255, 215, 0, 255), font=font_innings, anchor="rm")
         
         # Fecha del juego (centro, debajo del marcador)
         draw.text((ancho//2, y + 175), fecha_juego, fill=(200, 200, 200, 255), font=font_pitcher, anchor="mm")
         
-        # Pitchers (alineados a la izquierda con espaciado fijo)
-        x_pitchers = 35
+        # Pitchers en AMARILLO NEGRITA, anclados a Izquierda, Centro y Derecha
         y_pitchers = y + 195
         
         if pitcher_g:
-            draw.text((x_pitchers, y_pitchers), f"G: {pitcher_g}", fill=(76, 175, 80), font=font_pitcher, anchor="lm")
-            x_pitchers += 170  # 🆕 Aumentado ligeramente para mayor seguridad
-            
+            draw.text((35, y_pitchers), f"G: {pitcher_g}", fill=(255, 215, 0, 255), font=font_pitcher, anchor="lm")
+        
         if pitcher_p:
-            draw.text((x_pitchers, y_pitchers), f"P: {pitcher_p}", fill=(244, 67, 54), font=font_pitcher, anchor="lm")
-            x_pitchers += 170
-            
+            draw.text((ancho//2, y_pitchers), f"P: {pitcher_p}", fill=(255, 215, 0, 255), font=font_pitcher, anchor="mm")
+        
         if pitcher_s:
-            draw.text((x_pitchers, y_pitchers), f"S: {pitcher_s}", fill=(33, 150, 243), font=font_pitcher, anchor="lm")
+            draw.text((ancho - 35, y_pitchers), f"S: {pitcher_s}", fill=(255, 215, 0, 255), font=font_pitcher, anchor="rm")
     
     # 10. Footer
     draw.rectangle([80, alto-60, ancho-80, alto-20], fill=(20, 24, 82, 255))
