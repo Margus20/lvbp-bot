@@ -18,19 +18,19 @@ LOGOS = {
     'lvbp': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/logo_pag.png',
 }
 
-# Colores de fondo por equipo (basados en tu página)
+# 🆕 Colores EXACTOS extraídos de tu archivo equipos.js (Hex a RGB)
 COLORES_FONDO = {
-    'cardenales': (220, 38, 38),        # Rojo
-    'caribes': (245, 245, 245),         # Gris claro/blanco
-    'tigres': (0, 38, 92),              # Azul oscuro
-    'bravos': (78, 173, 173),           # Turquesa
-    'leones': (0, 32, 96),              # Azul marino
-    'aguilas': (249, 97, 0),            # Naranja
-    'tiburones': (41, 41, 249),         # Azul eléctrico
-    'magallanes': (91, 183, 230),       # Azul claro
+    'cardenales': (217, 13, 30),      # #D90D1E - Rojo Cardenales
+    'caribes': (242, 242, 242),       # #F2F2F2 - Gris claro/blanco Caribes
+    'tigres': (4, 41, 89),            # #042959 - Azul oscuro Tigres
+    'bravos': (86, 166, 166),         # #56A6A6 - Turquesa Bravos
+    'leones': (8, 32, 64),            # #082040 - Azul marino Leones
+    'aguilas': (242, 70, 7),          # #F24607 - Naranja exacto Águilas ✅
+    'tiburones': (33, 4, 217),        # #2104D9 - Azul eléctrico Tiburones
+    'magallanes': (91, 169, 217),     # #5BA9D9 - Azul claro Magallanes
 }
 
-#  Diccionario para traducir meses al español
+# Diccionario para traducir meses al español
 MESES_ES = {
     'January': 'Enero', 'February': 'Febrero', 'March': 'Marzo',
     'April': 'Abril', 'May': 'Mayo', 'June': 'Junio',
@@ -120,7 +120,7 @@ def crear_imagen_resultados(juegos, fecha_hoy=None):
     # 6. Título (SIN emoji y SIN sombra duplicada)
     draw.text((ancho//2, 70), "RESULTADOS", fill=(220, 38, 38), font=font_titulo, anchor="mm")
     
-    # 🆕 7. Fecha SIEMPRE de ayer y TRADUCIDA al español
+    # 7. Fecha SIEMPRE de ayer y TRADUCIDA al español
     fecha_ayer = datetime.now() - timedelta(days=1)
     fecha_en = fecha_ayer.strftime('%d de %B de %Y').capitalize()
     # Traducir mes de inglés a español
@@ -156,7 +156,7 @@ def crear_imagen_resultados(juegos, fecha_hoy=None):
         
         y = y_inicio + (i * (altura_tarjeta + espacio_entre))
         
-        # Obtener colores de los equipos
+        # Obtener colores EXACTOS de los equipos
         color_vis = COLORES_FONDO.get(detectar_equipo(visitante), (100, 100, 100))
         color_loc = COLORES_FONDO.get(detectar_equipo(local), (100, 100, 100))
         
