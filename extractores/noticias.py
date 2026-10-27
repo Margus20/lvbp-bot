@@ -4,10 +4,14 @@ import json5
 from io import BytesIO
 from config import URLS_DATOS, HEADERS, TU_PAGINA
 
+# URL base de tu repositorio para convertir rutas relativas en absolutas
+REPO_BASE = 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/'
+
 def obtener_todas_las_noticias():
     """
     Extrae TODAS las noticias disponibles en el archivo noticias.js.
-    Devuelve una lista con cada noticia, su imagen real y su enlace.
+    Devuelve una lista con cada noticia: título, imagen real y enlace.
+    SIN descripción ni resumen, tal como se solicitó.
     """
     try:
         respuesta = requests.get(URLS_DATOS['noticias'], headers=HEADERS, timeout=10)
@@ -22,36 +26,36 @@ def obtener_todas_las_noticias():
         
         lista_noticias = []
         
-        # Recorremos todas las noticias (o las primeras 5 para no saturar)
+        # Recorremos las noticias (máximo 5 para no saturar)
         for noticia in datos[:5]: 
             titulo = noticia.get('titulo', 'Sin título')
             fecha = noticia.get('fecha', '')
-            imagen_url = noticia.get('imagen', '')
+            imagen_rel = noticia.get('imagen', '')
             
-            # Creamos un resumen corto desde el contenido HTML
-            contenido_crudo = noticia.get('contenido', '')
-            resumen_limpio = contenido_crudo.replace('<p>', '').replace('</p>', ' ').replace('<strong>', '').replace('</strong>', '')
-            resumen_corto = resumen_limpio[:150] + ('...' if len(resumen_limpio) > 150 else '')
+            # 1. CORRECCIÓN DE IMAGEN: Construir URL absoluta si es relativa
+            if imagen_rel and not imagen_rel.startswith('http'):
+                imagen_url = REPO_BASE + imagen_rel
+            else:
+                imagen_url = imagen_rel
             
-            # Mensaje con enlace directo a la página
+            # 2. MENSAJE LIMPIO: Solo título, fecha y enlace (sin resumen)
             mensaje = (
                 f"📰 <b>{titulo}</b>\n"
                 f"📅 {fecha}\n\n"
-                f"{resumen_corto}\n\n"
                 f"🔗 <b>Leer noticia completa:</b> {TU_PAGINA}"
             )
             
             # Descargar la imagen real de la noticia
             imagen_bytes = None
-            if imagen_url and imagen_url.startswith('http'):
+            if imagen_url:
                 try:
                     resp_img = requests.get(imagen_url, headers=HEADERS, timeout=10)
                     if resp_img.status_code == 200 and len(resp_img.content) > 1000:
                         imagen_bytes = BytesIO(resp_img.content)
-                except:
-                    pass
+                except Exception as img_err:
+                    print(f"⚠️ No se pudo descargar imagen de '{titulo}': {img_err}")
             
-            # ID único para control
+            # ID único para control de duplicados
             id_unico = f"{titulo.strip()}_{fecha}".replace(" ", "_")
             
             lista_noticias.append({
@@ -66,7 +70,7 @@ def obtener_todas_las_noticias():
         print(f"❌ Error al extraer noticias: {e}")
         return []
 
-# Compatibilidad
+# Compatibilidad con funciones que esperen un solo resultado
 def obtener_ultima_noticia():
     noticias = obtener_todas_las_noticias()
     return noticias[0] if noticias else None
