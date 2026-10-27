@@ -18,16 +18,16 @@ LOGOS_EQUIPOS = {
     'caribes': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/caribes.png',
 }
 
-# Colores exactos de cada equipo (RGB) - Basados en tu página
+# 🆕 Colores EXACTOS extraídos de tu archivo equipos.js (Hex a RGB)
 COLORES_EQUIPOS = {
-    'cardenales': (220, 38, 38),        # Rojo Cardenales
-    'caribes': (245, 245, 245),         # Blanco/Gray Caribes
-    'tigres': (0, 38, 92),              # Azul oscuro Tigres
-    'bravos': (78, 173, 173),           # Turquesa Bravos
-    'leones': (0, 32, 96),              # Azul marino Leones
-    'aguilas': (249, 97, 0),            # Naranja Águilas ✅ CORREGIDO
-    'tiburones': (41, 41, 249),         # Azul eléctrico Tiburones
-    'magallanes': (91, 183, 230),       # Azul claro Magallanes
+    'cardenales': (217, 13, 30),      # #D90D1E - Rojo Cardenales
+    'caribes': (242, 242, 242),       # #F2F2F2 - Gris claro/blanco Caribes
+    'tigres': (4, 41, 89),            # #042959 - Azul oscuro Tigres
+    'bravos': (86, 166, 166),         # #56A6A6 - Turquesa Bravos
+    'leones': (8, 32, 64),            # #082040 - Azul marino Leones
+    'aguilas': (242, 70, 7),          # #F24607 - Naranja exacto Águilas ✅
+    'tiburones': (33, 4, 217),        # #2104D9 - Azul eléctrico Tiburones
+    'magallanes': (91, 169, 217),     # #5BA9D9 - Azul claro Magallanes
 }
 
 # Logos de televisoras con URLs CORRECTAS (basadas en canales.js)
@@ -40,7 +40,7 @@ LOGOS_TV = {
     'tves': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/tves.png',
 }
 
-# 🆕 Diccionario para traducir meses al español
+# Diccionario para traducir meses al español
 MESES_ES = {
     'January': 'Enero', 'February': 'Febrero', 'March': 'Marzo',
     'April': 'Abril', 'May': 'Mayo', 'June': 'Junio',
@@ -85,7 +85,7 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
     # 1. Canvas VERTICAL (600x1100)
     ancho = 600
     alto = 1100
-    # 🆕 Cambio 1: Fondo gris suave en lugar de blanco
+    # Fondo gris suave
     img = Image.new('RGBA', (ancho, alto), (230, 230, 230, 255))
     draw = ImageDraw.Draw(img)
     
@@ -99,7 +99,7 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
     
     # 3. Textura de fondo (pelotas de béisbol)
     random.seed(42)
-    # 🆕 Cambio 2: 5 veces más pelotas (75 en lugar de 15)
+    # 75 pelotas (5 veces más)
     for _ in range(75):
         px = random.randint(40, ancho-40)
         py = random.randint(140, alto-80)
@@ -160,7 +160,7 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
         
         y = y_inicio + (i * (altura_tarjeta + espacio_entre))
         
-        # Obtener colores de los equipos
+        # Obtener colores EXACTOS de los equipos
         color_visitante = COLORES_EQUIPOS.get(detectar_equipo(visitante), (150, 150, 150))
         color_local = COLORES_EQUIPOS.get(detectar_equipo(local), (150, 150, 150))
         
@@ -217,7 +217,7 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
         if lugar:
             draw.text((ancho//2, y + 175), f"ESTADIO: {lugar}", fill=(255, 255, 255, 255), font=font_estadio, anchor="mm")
         
-        # 🆕 Transmisión: SOLO LOGOS (múltiples si es necesario)
+        # Transmisión: SOLO LOGOS (múltiples si es necesario)
         if transmision and transmision != 'Por definir':
             # Buscar todos los logos de TV que coincidan
             logos_encontrados = []
