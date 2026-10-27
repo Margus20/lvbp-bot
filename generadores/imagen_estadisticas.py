@@ -3,6 +3,31 @@ from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
 
+# 🆕 Agregamos las mascotas para que se vea igual a la web
+MASCOTAS = {
+    'leones': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/mascotas/leo.jpg',
+    'navegantes': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/mascotas/capi.jpg',
+    'tiburones': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/mascotas/tibu.jpg',
+    'tigres': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/mascotas/tigre.jpg',
+    'aguilas': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/mascotas/agui.jpg',
+    'cardenales': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/mascotas/guarito.jpg',
+    'caribes': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/mascotas/caribito.jpg',
+    'bravos': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/mascotas/bravin.jpg',
+}
+
+def descargar_mascota(equipo_key):
+    """Descarga la mascota del equipo en formato circular"""
+    url = MASCOTAS.get(equipo_key)
+    if not url:
+        return None
+    try:
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 200:
+            return Image.open(BytesIO(resp.content)).convert("RGBA")
+    except:
+        pass
+    return None
+
 # Colores por categoría (fondos)
 COLORES_CATEGORIAS = {
     'jonrones': (180, 130, 0),            # Dorado/Mostaza
@@ -20,28 +45,18 @@ NOMBRES_CATEGORIAS = {
     'hits': 'Hits (H)',
 }
 
-def descargar_foto_jugador(url):
-    """Descarga la foto del jugador"""
-    try:
-        resp = requests.get(url, timeout=10)
-        if resp.status_code == 200:
-            return Image.open(BytesIO(resp.content)).convert("RGBA")
-    except:
-        pass
-    return None
-
 def crear_imagen_estadisticas(lideres):
     """
     Crea una imagen VERTICAL con las principales categorías estadísticas
-    mostrando el TOP 3 de cada una.
+    mostrando el TOP 3 de cada una en FILAS HORIZONTALES (idéntico a la web).
     """
-    # Canvas vertical grande (600x1000)
+    # 🆕 Canvas un poco más alto (1300) para que quepan bien las 3 filas por categoría
     ancho = 600
-    alto = 1000
+    alto = 1300
     img = Image.new('RGBA', (ancho, alto), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
-    # Fondo con gradiente azul oscuro
+    # Fondo con gradiente azul oscuro (tu código original)
     for y in range(alto):
         r = int(20 + (0 - 20) * (y / alto))
         g = int(24 + (0 - 24) * (y / alto))
@@ -57,13 +72,13 @@ def crear_imagen_estadisticas(lideres):
         font_titulo = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
         font_categoria = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
         font_jugador = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
-        font_valor = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
+        font_valor = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
         font_numero = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
         font_footer = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
     except:
         font_titulo = font_categoria = font_jugador = font_valor = font_numero = font_footer = ImageFont.load_default()
     
-    # Título (SIN sombra duplicada)
+    # Título
     draw.text((ancho//2, 50), "📊 LÍDERES ESTADÍSTICOS LVBP", fill=(255, 215, 0, 255), font=font_titulo, anchor="mm")
     
     # Línea separadora
@@ -71,10 +86,10 @@ def crear_imagen_estadisticas(lideres):
     
     # Posición inicial
     y_actual = 110
-    altura_categoria = 160
+    altura_categoria = 220  # 🆕 Aumentado para acomodar 3 filas horizontales
     espacio_entre = 20
     
-    # Categorías a mostrar (usando las claves exactas de lideres.js)
+    # Categorías a mostrar
     categorias_principales = ['jonrones', 'average', 'impulsadas', 'efectividad', 'hits']
     
     for categoria in categorias_principales:
@@ -92,27 +107,36 @@ def crear_imagen_estadisticas(lideres):
         # Título de la categoría
         draw.text((ancho//2, y_actual + 25), f"🏆 {nombre_cat}", fill=(255, 255, 255, 255), font=font_categoria, anchor="mm")
         
-        # Jugadores (Top 3 en horizontal)
-        x_inicial = 60
-        espacio_jugador = (ancho - 120) // 3
+        # 🆕 Jugadores en FILAS HORIZONTALES (igual que tu página web)
+        y_fila = y_actual + 60
+        altura_fila = 50
         
         for i, jugador in enumerate(jugadores):
-            x = x_inicial + (i * espacio_jugador) + (espacio_jugador // 2)
-            y_jugador = y_actual + 70
+            y = y_fila + (i * (altura_fila + 10))
             
-            # Número de posición (círculo dorado)
-            draw.ellipse([x - 20, y_jugador - 20, x + 20, y_jugador + 20], fill=(255, 215, 0, 255))
-            draw.text((x, y_jugador), f"#{i+1}", fill=(0, 0, 0, 255), font=font_numero, anchor="mm")
+            # 1. Número de posición
+            draw.text((45, y + 25), f"#{i+1}", fill=(255, 215, 0, 255), font=font_numero, anchor="mm")
             
-            # Nombre del jugador (abreviado)
+            # 2. Mascota del equipo (círculo de 40x40)
+            equipo_key = jugador.get('equipo', '')
+            mascota = descargar_mascota(equipo_key)
+            if mascota:
+                mascota = mascota.resize((40, 40), Image.Resampling.LANCZOS)
+                # Crear máscara circular
+                mask = Image.new('L', (40, 40), 0)
+                ImageDraw.Draw(mask).ellipse((0, 0, 40, 40), fill=255)
+                img.paste(mascota, (70, y + 5), mask)
+            
+            # 3. Nombre del jugador (formato "M. Vargas" o el que venga en el JS)
             nombre = jugador.get('nombre', 'Desconocido')
-            nombre_corto = nombre.split()[0][:10].upper() if nombre else 'N/A'
-            draw.text((x, y_jugador + 35), nombre_corto, fill=(255, 255, 255, 255), font=font_jugador, anchor="mm")
+            nombre_mostrar = nombre[:22] + "..." if len(nombre) > 22 else nombre
+            draw.text((120, y + 25), nombre_mostrar, fill=(255, 255, 255, 255), font=font_jugador, anchor="lm")
             
-            # Valor estadístico
+            # 4. Valor estadístico (círculo blanco a la derecha)
             valor = str(jugador.get('valor', '0'))
-            draw.text((x, y_jugador + 65), valor, fill=(255, 215, 0, 255), font=font_valor, anchor="mm")
-        
+            draw.ellipse([ancho-90, y + 5, ancho-50, y + 45], fill=(255, 255, 255, 255))
+            draw.text((ancho-70, y + 25), valor, fill=color_fondo, font=font_valor, anchor="mm")
+            
         y_actual += altura_categoria + espacio_entre
     
     # Footer
