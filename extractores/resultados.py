@@ -1,11 +1,14 @@
 # extractores/resultados.py
 import requests
 import json5
-from config import URLS_DATOS, HEADERS, TU_PAGINA
-from generadores.imagen_resultado import crear_imagen_resultado  # 🆕 NUEVA LÍNEA
+from config import URLS_DATOS, HEADERS
 
-def obtener_ultimo_resultado():
-    """Extrae el último resultado del archivo resultados.js"""
+def obtener_resultados_del_dia():
+    """
+    Extrae TODOS los resultados de la jornada más reciente del archivo resultados.js.
+    Devuelve una lista de diccionarios con los datos limpios para que el generador 
+    cree la tarjeta con todos los juegos del día.
+    """
     try:
         # 1. Descargamos el archivo JS crudo
         respuesta = requests.get(URLS_DATOS['resultados'], headers=HEADERS, timeout=10)
@@ -13,40 +16,35 @@ def obtener_ultimo_resultado():
         
         # 2. json5 convierte el texto "export const RESULTADOS = [...]" en una lista de Python
         texto_js = respuesta.text
-        # Truco: json5 a veces falla con "export const", así que lo limpiamos
         texto_limpio = texto_js.replace('export const RESULTADOS = ', '').strip().rstrip(';')
         
         datos = json5.loads(texto_limpio)
         
-        if not datos:
-            return None
+        if not datos or not isinstance(datos, list):
+            return []
             
-        # 3. Tomamos el último juego de la lista
-        ultimo_juego = datos[-1]
+        # 3. Identificamos la fecha del último juego (la jornada más reciente)
+        fecha_mas_reciente = datos[-1].get('fecha', '')
         
-        # 4. Formateamos el mensaje para Telegram
-        visitante = ultimo_juego.get('visitante', '???')
-        local = ultimo_juego.get('local', '???')
-        score_vis = ultimo_juego.get('scoreVisitante', 0)
-        score_loc = ultimo_juego.get('scoreLocal', 0)
-        fecha = ultimo_juego.get('fecha', '')
+        # 4. Filtramos y devolvemos TODOS los juegos que coincidan con esa fecha
+        juegos_del_dia = [juego for juego in datos if juego.get('fecha') == fecha_mas_reciente]
         
-        mensaje = (
-            f"⚾ <b>RESULTADO FINAL</b>\n\n"
-            f"🏟️ {visitante} <b>{score_vis}</b> - <b>{score_loc}</b> {local}\n"
-            f"📅 {fecha}\n\n"
-            f"🔗 Ver detalles: {TU_PAGINA}#resultados"
-        )
-        
-        # 🆕 NUEVA LÍNEA: Generamos la imagen dinámica
-        imagen_bytes = crear_imagen_resultado(visitante, local, score_vis, score_loc, fecha)
-        
-        # Devolvemos el mensaje y un "ID único" (la fecha + equipos) para saber si ya se publicó
-        id_unico = f"{fecha}_{visitante}_{local}"
-        
-        # 🆕 MODIFICADO: Ahora devolvemos también la imagen
-        return {"mensaje": mensaje, "id": id_unico, "imagen": imagen_bytes}
+        # Fallback: si no hay fecha, devolvemos los últimos 4 juegos por seguridad
+        if not juegos_del_dia:
+            juegos_del_dia = datos[-4:]
+            
+        return juegos_del_dia
         
     except Exception as e:
         print(f"❌ Error al extraer resultados: {e}")
-        return None
+        return []
+
+def obtener_ultimo_resultado():
+    """
+    Mantiene compatibilidad por si se usa en otro script.
+    Devuelve solo el último juego de la lista.
+    """
+    resultados = obtener_resultados_del_dia()
+    if resultados:
+        return resultados[-1]
+    return None
