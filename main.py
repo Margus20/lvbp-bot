@@ -8,9 +8,10 @@ from datetime import datetime
 from config import TOKEN, CANAL
 
 # Extractores (traen los datos de tu web)
+# ⚠️ IMPORTANTE: Usamos 'ppublicidad' (doble P) como acordamos.
 from extractores import resultados, posiciones, noticias, calendario, estadisticas, ppublicidad
 
-# 🆕 Generadores (crean las imágenes bonitas que acabamos de arreglar)
+# Generadores (crean las imágenes bonitas)
 from generadores import imagen_resultado, imagen_calendario, imagen_posiciones
 
 VISTOS_FILE = 'vistos.json'
@@ -22,12 +23,12 @@ def cargar_vistos():
             with open(VISTOS_FILE, 'r', encoding='utf-8') as f:
                 datos = json.load(f)
                 # Blindaje de formato
-                for key in ["resultados", "noticias"]:
+                for key in ["resultados", "noticias_ids"]:
                     if key not in datos or isinstance(datos[key], str):
                         datos[key] = []
-                for key in ["posiciones", "calendario", "estadisticas", "publicidad_ultima_fecha"]:
+                for key in ["posiciones", "calendario", "estadisticas", "fecha_publicidad", "fecha_noticias"]:
                     if key not in datos:
-                        datos[key] = "" if key != "publicidad_ultima_fecha" else None
+                        datos[key] = "" if key not in ["fecha_publicidad", "fecha_noticias"] else None
                 return datos
         except Exception as e:
             print(f"⚠️ Error al leer vistos.json ({e}). Creando uno nuevo...")
@@ -36,9 +37,10 @@ def cargar_vistos():
         "resultados": [],
         "posiciones": "",
         "calendario": "",
-        "noticias": [],
+        "noticias_ids": [],
         "estadisticas": "",
-        "publicidad_ultima_fecha": None
+        "fecha_publicidad": None,
+        "fecha_noticias": None
     }
 
 def guardar_vistos(vistos):
@@ -74,22 +76,20 @@ def main():
     
     vistos = cargar_vistos()
     fecha_hoy_str = datetime.now().strftime('%d de %B de %Y').capitalize()
+    hoy_fecha = datetime.now().strftime('%Y-%m-%d')
     
     # ==========================================
     # 1. RECOPILAR TODOS LOS DATOS DEL DÍA
     # ==========================================
     print("📡 Extrayendo datos para el resumen diario...")
     
-    # Intentamos obtener listas. Si el extractor devuelve un solo diccionario, lo convertimos en lista.
-    datos_resultados = resultados.obtener_resultados_del_dia() # O obtener_ultimo_resultado()
+    datos_resultados = resultados.obtener_resultados_del_dia()
     if isinstance(datos_resultados, dict): datos_resultados = [datos_resultados]
     
     datos_calendario = calendario.obtener_jornada_hoy()
     if isinstance(datos_calendario, dict): datos_calendario = [datos_calendario]
     
-    datos_posiciones = posiciones.obtener_tabla_posiciones() # Debería devolver una lista de dicts
-    
-    datos_noticias = noticias.obtener_ultima_noticia()
+    datos_posiciones = posiciones.obtener_tabla_posiciones()
     
     # ==========================================
     # 2. GENERAR LAS IMÁGENES CON LOS NUEVOS GENERADORES
@@ -120,26 +120,22 @@ def main():
         resumen_texto += f"✅ <b>Resultados:</b> {len(datos_resultados)} juego(s) finalizado(s).\n"
     if datos_calendario:
         resumen_texto += f"🗓️ <b>Jornada:</b> {len(datos_calendario)} juego(s) programado(s).\n"
-    if datos_noticias:
-        resumen_texto += f"📰 <b>Noticia:</b> {datos_noticias.get('titulo', 'Nueva noticia disponible')}\n"
         
     resumen_texto += "\n👇 <i>Revisa las imágenes a continuación para ver los detalles completos.</i>"
 
     # ==========================================
-    # 4. PUBLICAR EN TELEGRAM (ORDENADO)
+    # 4. PUBLICAR TARJETAS VISUALES EN TELEGRAM
     # ==========================================
-    print("📤 Enviando resumen al canal...")
+    print("📤 Enviando tarjetas visuales al canal...")
     
-    # Enviamos la imagen más importante primero (Resultados o Calendario) con el texto resumen
     imagen_principal = img_resultados if img_resultados else img_calendario
     
     if imagen_principal:
         exito = enviar_imagen_a_telegram(imagen_principal, resumen_texto)
         if exito:
             print("   ✅ Imagen principal enviada.")
-            time.sleep(1.5) # Pausa para no saturar
+            time.sleep(1.5)
             
-    # Enviamos las imágenes secundarias sin texto (o con texto mínimo)
     if img_calendario and img_calendario != imagen_principal:
         enviar_imagen_a_telegram(img_calendario, "🗓️ <b>Jornada del Día</b>")
         time.sleep(1.5)
@@ -149,32 +145,56 @@ def main():
         time.sleep(1.5)
 
     # ==========================================
-    # 5. PUBLICIDAD (CONTROLADA: 1 VEZ POR DÍA)
+    # 5. PUBLICAR TODAS LAS NOTICIAS (1 VEZ AL DÍA)
     # ==========================================
-    print("📢 Revisando publicidad...")
-    hoy_fecha = datetime.now().strftime('%Y-%m-%d')
+    print("📰 Revisando noticias para publicar hoy...")
     
-    # Solo publicamos publicidad si NO hemos publicado hoy
-    if vistos.get("publicidad_ultima_fecha") != hoy_fecha:
+    if vistos.get("fecha_noticias") != hoy_fecha:
+        lista_noticias = noticias.obtener_todas_las_noticias()
+        
+        if lista_noticias:
+            print(f"✅ {len(lista_noticias)} noticias detectadas. Publicando una por una...")
+            for i, data_noticia in enumerate(lista_noticias, 1):
+                print(f"   📰 Enviando noticia {i}/{len(lista_noticias)}: {data_noticia['id'][:30]}...")
+                
+                if data_noticia.get("imagen"):
+                    enviar_imagen_a_telegram(data_noticia["imagen"], data_noticia["mensaje"])
+                else:
+                    enviar_texto_a_telegram(data_noticia["mensaje"])
+                
+                time.sleep(2) # Pausa para no saturar la API de Telegram
+                
+            vistos["fecha_noticias"] = hoy_fecha
+            print("   ✅ Todas las noticias enviadas (1 vez por día).")
+    else:
+        print("   ⏭️ Noticias omitidas (ya se publicaron hoy).")
+    print("-" * 50)
+
+    # ==========================================
+    # 6. PUBLICIDAD (CONTROLADA: 1 VEZ POR DÍA - DOBLE P)
+    # ==========================================
+    print("📢 Revisando publicidad (usando módulo 'ppublicidad' con doble P)...")
+    
+    if vistos.get("fecha_publicidad") != hoy_fecha:
+        # Aquí usamos explícitamente el módulo ppublicidad que funciona
         lista_publicidades = ppublicidad.obtener_todas_las_publicidades()
         if lista_publicidades:
-            # Elegimos 1 publicidad al azar para no ser repetitivos
             pub_elegida = random.choice(lista_publicidades)
-            print(f"   - Enviando publicidad: {pub_elegida.get('mensaje', 'Anuncio')[:30]}...")
+            print(f"   📢 Enviando publicidad: {pub_elegida.get('mensaje', 'Anuncio')[:30]}...")
             
             if "imagen" in pub_elegida:
                 enviar_imagen_a_telegram(pub_elegida["imagen"], pub_elegida["mensaje"])
             else:
                 enviar_texto_a_telegram(pub_elegida["mensaje"])
                 
-            # Marcamos que ya publicamos publicidad hoy
-            vistos["publicidad_ultima_fecha"] = hoy_fecha
+            vistos["fecha_publicidad"] = hoy_fecha
             print("   ✅ Publicidad enviada (1 vez por día).")
     else:
         print("   ⏭️ Publicidad omitida (ya se publicó hoy).")
+    print("-" * 50)
 
     # ==========================================
-    # 6. ACTUALIZAR HISTORIAL
+    # 7. ACTUALIZAR HISTORIAL
     # ==========================================
     print("💾 Guardando historial...")
     guardar_vistos(vistos)
