@@ -17,16 +17,16 @@ LOGOS_EQUIPOS = {
     'caribes': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/caribes.png',
 }
 
-# Colores exactos de cada equipo (RGB)
+# 🆕 Colores EXACTOS extraídos de tu archivo equipos.js (Hex a RGB)
 COLORES_EQUIPOS = {
-    'cardenales': (220, 38, 38),      # Rojo Cardenales
-    'caribes': (245, 245, 245),       # Blanco/Gray Caribes
-    'tigres': (0, 38, 92),            # Azul oscuro Tigres
-    'bravos': (78, 173, 173),         # Turquesa Bravos
-    'leones': (0, 32, 96),            # Azul marino Leones
-    'aguilas': (249, 97, 0),          # Naranja Águilas ✅ CORREGIDO
-    'tiburones': (41, 41, 249),       # Azul eléctrico Tiburones
-    'magallanes': (91, 183, 230),     # Azul claro Magallanes
+    'cardenales': (217, 13, 30),      # #D90D1E - Rojo Cardenales
+    'caribes': (242, 242, 242),       # #F2F2F2 - Blanco/Gray Caribes
+    'tigres': (4, 41, 89),            # #042959 - Azul oscuro Tigres
+    'bravos': (86, 166, 166),         # #56A6A6 - Turquesa Bravos
+    'leones': (8, 32, 64),            # #082040 - Azul marino Leones
+    'aguilas': (242, 70, 7),          # #F24607 - Naranja exacto Águilas ✅
+    'tiburones': (33, 4, 217),        # #2104D9 - Azul eléctrico Tiburones
+    'magallanes': (91, 169, 217),     # #5BA9D9 - Azul claro Magallanes
 }
 
 def descargar_logo(url=LOGO_CANAL):
@@ -67,17 +67,17 @@ def dibujar_pelota_béisbol(draw, x, y, radio):
 def crear_imagen_posiciones(posiciones):
     """
     Crea una imagen VERTICAL de la tabla de posiciones centrada, 
-    con textura de fondo y textos limpios sin sombras.
+    con textura de fondo, colores exactos de la web y textos limpios.
     """
     
     # 1. Canvas (650x1000)
     ancho = 650
     alto = 1000
-    # 🆕 Cambio 1: Fondo gris suave en lugar de blanco
+    # Fondo gris intermedio suave
     img = Image.new('RGBA', (ancho, alto), (230, 230, 230, 255))
     draw = ImageDraw.Draw(img)
     
-    # 2. 🆕 Textura de fondo (75 pelotas - 5 veces más)
+    # 2. Textura de fondo (75 pelotas - 5 veces más)
     random.seed(42)
     for _ in range(75):
         px = random.randint(40, ancho-40)
@@ -109,7 +109,7 @@ def crear_imagen_posiciones(posiciones):
     # 6. Título SIN emoji y SIN sombra duplicada
     draw.text((ancho//2, 60), "TABLA DE POSICIONES LVBP", fill=(220, 38, 38), font=font_titulo, anchor="mm")
     
-    # 🆕 7. Header de columnas PEGADO al primer equipo (sin espacio)
+    # 7. Header de columnas PEGADO al primer equipo
     y_header = 100
     altura_header = 40
     draw.rectangle([20, y_header, ancho-20, y_header + altura_header], fill=(255, 215, 0, 255))
@@ -124,13 +124,13 @@ def crear_imagen_posiciones(posiciones):
     # Línea separadora
     draw.line([(20, y_header + altura_header), (ancho-20, y_header + altura_header)], fill=(255, 215, 0, 255), width=2)
     
-    # 8. 🆕 CÁLCULO DE CENTRADO VERTICAL
+    # 8. CÁLCULO DE CENTRADO VERTICAL
     num_equipos = len(posiciones[:8])
     altura_fila = 65
     altura_total_filas = num_equipos * altura_fila
     
     # Espacio disponible (desde justo debajo del header hasta arriba del footer)
-    y_top = y_header + altura_header  #  Justo debajo del header
+    y_top = y_header + altura_header  # Justo debajo del header, sin espacio
     y_bottom = alto - 60
     espacio_disponible = y_bottom - y_top
     
@@ -142,7 +142,7 @@ def crear_imagen_posiciones(posiciones):
         nombre = str(equipo.get('nombre', 'Equipo'))
         equipo_key = detectar_equipo(nombre)
         
-        # Obtener color del equipo
+        # Obtener color exacto del equipo
         color_equipo = COLORES_EQUIPOS.get(equipo_key, (100, 100, 100))
         
         # Acortar nombres
@@ -168,7 +168,7 @@ def crear_imagen_posiciones(posiciones):
         
         y = y_inicio + (i * altura_fila)
         
-        # Fondo de la fila con el color del equipo
+        # Fondo de la fila con el color exacto del equipo
         draw.rectangle([20, y, ancho-20, y + 60], fill=color_equipo)
         
         # Borde inferior blanco para separar filas
@@ -185,7 +185,7 @@ def crear_imagen_posiciones(posiciones):
             logo_equipo = logo_equipo.resize((35, 35), Image.Resampling.LANCZOS)
             img.paste(logo_equipo, (70, y + 12), logo_equipo)
         
-        # DETECTAR si el fondo es claro (Caribes) para usar texto negro en TODO
+        # DETECTAR si el fondo es claro (Caribes: 242+242+242 = 726 / 3 = 242 > 200)
         es_fondo_claro = sum(color_equipo) / 3 > 200
         color_texto = (0, 0, 0) if es_fondo_claro else (255, 255, 255)
         
