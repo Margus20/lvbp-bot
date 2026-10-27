@@ -25,7 +25,7 @@ COLORES_EQUIPOS = {
     'tigres': (0, 38, 92),              # Azul oscuro Tigres
     'bravos': (78, 173, 173),           # Turquesa Bravos
     'leones': (0, 32, 96),              # Azul marino Leones
-    'aguilas': (249, 97, 0),            # Naranja Águilas
+    'aguilas': (249, 97, 0),            # Naranja Águilas ✅ CORREGIDO
     'tiburones': (41, 41, 249),         # Azul eléctrico Tiburones
     'magallanes': (91, 183, 230),       # Azul claro Magallanes
 }
@@ -38,6 +38,14 @@ LOGOS_TV = {
     'bym sport': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/bymtv.png',
     'baseball': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/baseballtv.png',
     'tves': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/tves.png',
+}
+
+# 🆕 Diccionario para traducir meses al español
+MESES_ES = {
+    'January': 'Enero', 'February': 'Febrero', 'March': 'Marzo',
+    'April': 'Abril', 'May': 'Mayo', 'June': 'Junio',
+    'July': 'Julio', 'August': 'Agosto', 'September': 'Septiembre',
+    'October': 'Octubre', 'November': 'Noviembre', 'December': 'Diciembre'
 }
 
 def descargar_logo(url):
@@ -77,21 +85,27 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
     # 1. Canvas VERTICAL (600x1100)
     ancho = 600
     alto = 1100
-    img = Image.new('RGBA', (ancho, alto), (255, 255, 255, 255))
+    # 🆕 Cambio 1: Fondo gris suave en lugar de blanco
+    img = Image.new('RGBA', (ancho, alto), (230, 230, 230, 255))
     draw = ImageDraw.Draw(img)
     
-    # 2. Si no hay fecha, usar la de hoy
+    # 2. Si no hay fecha, usar la de hoy y TRADUCIR al español
     if not fecha_hoy:
-        fecha_hoy = datetime.now().strftime('%d de %B').capitalize()
+        fecha_en = datetime.now().strftime('%d de %B').capitalize()
+        # Traducir mes de inglés a español
+        for mes_en, mes_es in MESES_ES.items():
+            fecha_en = fecha_en.replace(mes_en, mes_es)
+        fecha_hoy = fecha_en
     
-    # 3. 🆕 Textura de fondo (pelotas de béisbol sutiles en transparencia)
-    random.seed(42)  # Para que el patrón sea siempre el mismo y no cambie en cada ejecución
-    for _ in range(15):
+    # 3. Textura de fondo (pelotas de béisbol)
+    random.seed(42)
+    # 🆕 Cambio 2: 5 veces más pelotas (75 en lugar de 15)
+    for _ in range(75):
         px = random.randint(40, ancho-40)
         py = random.randint(140, alto-80)
-        pr = random.randint(15, 30)
-        # Círculo gris muy claro (sutil sobre el blanco)
-        draw.ellipse([px-pr, py-pr, px+pr, py+pr], fill=(245, 245, 245, 255))
+        pr = random.randint(12, 28)
+        # Círculo blanco (pelota)
+        draw.ellipse([px-pr, py-pr, px+pr, py+pr], fill=(255, 255, 255, 255))
         # Costuras rojas tenues
         draw.arc([px-pr+3, py-pr+3, px+pr-3, py+pr-3], start=45, end=135, fill=(220, 38, 38, 80), width=2)
         draw.arc([px-pr+3, py-pr+3, px+pr-3, py+pr-3], start=225, end=315, fill=(220, 38, 38, 80), width=2)
@@ -117,16 +131,16 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
         logo_canal = logo_canal.resize((50, 50), Image.Resampling.LANCZOS)
         img.paste(logo_canal, (15, 15), logo_canal)
     
-    # 7. 🆕 Título SIN emoji (para evitar el cuadrito)
+    # 7. Título SIN emoji
     draw.text((ancho//2, 70), "JORNADA DEL DÍA", fill=(220, 38, 38), font=font_titulo, anchor="mm")
     
-    # 8. Fecha debajo del título
+    # 8. Fecha debajo del título (ya traducida)
     draw.text((ancho//2, 105), fecha_hoy, fill=(220, 38, 38), font=font_fecha, anchor="mm")
     
     # 9. Línea separadora dorada
     draw.line([(50, 135), (ancho-50, 135)], fill=(255, 215, 0, 255), width=3)
     
-    # 10. 🆕 CÁLCULO DE CENTRADO VERTICAL (para 1, 2, 3 o 4 juegos)
+    # 10. CÁLCULO DE CENTRADO VERTICAL (para 1, 2, 3 o 4 juegos)
     num_juegos = min(len(juegos), 4)
     altura_tarjeta = 200
     espacio_entre = 20
@@ -150,7 +164,7 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
         color_visitante = COLORES_EQUIPOS.get(detectar_equipo(visitante), (150, 150, 150))
         color_local = COLORES_EQUIPOS.get(detectar_equipo(local), (150, 150, 150))
         
-        # Tarjeta con bordes redondeados
+        # Tarjeta con bordes redondeados (fondo blanco tapa la textura)
         draw.rectangle([20, y, ancho-20, y + altura_tarjeta], fill=(255, 255, 255, 255))
         draw.rectangle([20, y, ancho-20, y + altura_tarjeta], outline=(255, 215, 0, 200), width=2)
         
@@ -192,7 +206,7 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
         draw.ellipse([ancho//2 - 30, y + 55, ancho//2 + 30, y + 115], outline=(255, 215, 0, 255), width=3)
         draw.text((ancho//2, y + 85), "VS", fill=(220, 38, 38), font=font_equipo, anchor="mm")
         
-        # 🆕 Franja inferior negra con texto BIEN SEPARADO (sin montarse)
+        # Franja inferior negra
         draw.rectangle([25, y + 135, ancho-25, y + altura_tarjeta - 5], fill=(20, 20, 20, 255))
         draw.rectangle([25, y + 135, ancho-25, y + altura_tarjeta - 5], outline=(255, 215, 0, 100), width=1)
         
@@ -203,20 +217,26 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
         if lugar:
             draw.text((ancho//2, y + 175), f"ESTADIO: {lugar}", fill=(255, 255, 255, 255), font=font_estadio, anchor="mm")
         
-        # Transmisión (arriba a la derecha) - CON LOGO DE TV si existe
+        # 🆕 Transmisión: SOLO LOGOS (múltiples si es necesario)
         if transmision and transmision != 'Por definir':
-            logo_tv = None
+            # Buscar todos los logos de TV que coincidan
+            logos_encontrados = []
             for tv_name, tv_url in LOGOS_TV.items():
                 if tv_name in transmision.lower():
                     logo_tv = descargar_logo(tv_url)
-                    break
+                    if logo_tv:
+                        logo_tv = logo_tv.resize((30, 30), Image.Resampling.LANCZOS)
+                        logos_encontrados.append(logo_tv)
             
-            if logo_tv:
-                logo_tv = logo_tv.resize((25, 25), Image.Resampling.LANCZOS)
-                img.paste(logo_tv, (ancho - 65, y + 142), logo_tv)
-                draw.text((ancho - 35, y + 155), transmision, fill=(255, 215, 0, 255), font=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 11), anchor="mm")
-            else:
-                draw.text((ancho - 35, y + 150), f"TV: {transmision}", fill=(255, 215, 0, 255), font=font_estadio, anchor="rm")
+            # Dibujar los logos encontrados (hasta 4) centrados en la franja
+            if logos_encontrados:
+                total_logos = len(logos_encontrados)
+                espacio_logo = 40
+                x_inicio = (ancho - (total_logos * espacio_logo)) // 2
+                
+                for j, logo_tv in enumerate(logos_encontrados):
+                    x_logo = x_inicio + (j * espacio_logo) + 15
+                    img.paste(logo_tv, (x_logo, y + 145), logo_tv)
     
     # 12. Footer con información
     draw.rectangle([50, alto-70, ancho-50, alto-20], fill=(20, 24, 82, 255))
