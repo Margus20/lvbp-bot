@@ -29,6 +29,16 @@ COLORES_EQUIPOS = {
     'magallanes': (91, 183, 230),       # Azul claro Magallanes
 }
 
+# 🆕 Logos de televisoras con URLs CORRECTAS (basadas en canales.js)
+LOGOS_TV = {
+    'meridiano': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/meridianotv.png',
+    'meridiano tv': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/meridianotv.png',
+    'bym': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/bymtv.png',
+    'bym sport': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/bymtv.png',
+    'baseball': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/baseballtv.png',
+    'tves': 'https://raw.githubusercontent.com/Margus20/lvbp-stats/main/img/tves.png',
+}
+
 def descargar_logo(url):
     """Descarga una imagen desde una URL"""
     try:
@@ -94,9 +104,8 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
         logo_canal = logo_canal.resize((50, 50), Image.Resampling.LANCZOS)
         img.paste(logo_canal, (15, 15), logo_canal)
     
-    # 6. Título "JORNADA DEL DÍA" centrado arriba
-    draw.text((ancho//2 + 1, 81), "📅 JORNADA DEL DÍA", fill=(0, 0, 0, 150), font=font_titulo, anchor="mm")
-    draw.text((ancho//2, 80), " JORNADA DEL DÍA", fill=(220, 38, 38), font=font_titulo, anchor="mm")
+    # 6. 🆕 Título "JORNADA DEL DÍA" centrado arriba (SIN sombra duplicada)
+    draw.text((ancho//2, 80), "📅 JORNADA DEL DÍA", fill=(220, 38, 38), font=font_titulo, anchor="mm")
     
     # 7. Fecha debajo del título
     draw.text((ancho//2, 125), fecha_hoy, fill=(220, 38, 38), font=font_fecha, anchor="mm")
@@ -149,12 +158,15 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
             logo_local = logo_local.resize((80, 80), Image.Resampling.LANCZOS)
             img.paste(logo_local, (3*ancho//4 - 40, y + 25), logo_local)
         
-        # Nombres de equipos (blancos con sombra)
-        draw.text((ancho//4, y + 115), visitante.upper(), fill=(0, 0, 0, 180), font=font_equipo, anchor="mm")
-        draw.text((ancho//4, y + 113), visitante.upper(), fill=(255, 255, 255, 255), font=font_equipo, anchor="mm")
+        # 🆕 Nombres de equipos: DETECTAR si el fondo es claro (Caribes) para usar texto negro
+        es_visitante_claro = sum(color_visitante) / 3 > 200
+        es_local_claro = sum(color_local) / 3 > 200
         
-        draw.text((3*ancho//4, y + 115), local.upper(), fill=(0, 0, 0, 180), font=font_equipo, anchor="mm")
-        draw.text((3*ancho//4, y + 113), local.upper(), fill=(255, 255, 255, 255), font=font_equipo, anchor="mm")
+        color_texto_vis = (0, 0, 0) if es_visitante_claro else (255, 255, 255)
+        color_texto_loc = (0, 0, 0) if es_local_claro else (255, 255, 255)
+        
+        draw.text((ancho//4, y + 113), visitante.upper(), fill=color_texto_vis, font=font_equipo, anchor="mm")
+        draw.text((3*ancho//4, y + 113), local.upper(), fill=color_texto_loc, font=font_equipo, anchor="mm")
         
         # Círculo VS en el centro
         draw.ellipse([ancho//2 - 30, y + 55, ancho//2 + 30, y + 115], fill=(255, 255, 255, 255))
@@ -165,16 +177,29 @@ def crear_imagen_calendario(juegos, fecha_hoy=None):
         draw.rectangle([25, y + 135, ancho-25, y + altura_tarjeta - 5], fill=(20, 20, 20, 255))
         draw.rectangle([25, y + 135, ancho-25, y + altura_tarjeta - 5], outline=(255, 215, 0, 100), width=1)
         
-        # Hora (con ícono de reloj)
-        draw.text((35, y + 155), f"🕐 {hora}", fill=(255, 215, 0, 255), font=font_hora, anchor="lm")
+        # 🆕 Hora (sin emoji, solo texto para evitar cuadritos)
+        draw.text((35, y + 155), f"HORA: {hora}", fill=(255, 215, 0, 255), font=font_hora, anchor="lm")
         
-        # Estadio
+        # 🆕 Estadio (sin emoji)
         if lugar:
-            draw.text((ancho//2, y + 155), f"🏟️ {lugar}", fill=(255, 255, 255, 255), font=font_estadio, anchor="mm")
+            draw.text((ancho//2, y + 155), f"ESTADIO: {lugar}", fill=(255, 255, 255, 255), font=font_estadio, anchor="mm")
         
-        # Transmisión (abajo a la derecha)
+        # 🆕 Transmisión (abajo a la derecha) - CON LOGO DE TV si existe
         if transmision and transmision != 'Por definir':
-            draw.text((ancho - 35, y + 155), f"📺 {transmision}", fill=(255, 215, 0, 255), font=font_estadio, anchor="rm")
+            # Intentar descargar logo de TV
+            logo_tv = None
+            for tv_name, tv_url in LOGOS_TV.items():
+                if tv_name in transmision.lower():
+                    logo_tv = descargar_logo(tv_url)
+                    break
+            
+            if logo_tv:
+                logo_tv = logo_tv.resize((30, 30), Image.Resampling.LANCZOS)
+                img.paste(logo_tv, (ancho - 70, y + 150), logo_tv)
+                draw.text((ancho - 35, y + 165), transmision, fill=(255, 215, 0, 255), font=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12), anchor="mm")
+            else:
+                # Si no hay logo, solo texto sin emoji
+                draw.text((ancho - 35, y + 155), f"TV: {transmision}", fill=(255, 215, 0, 255), font=font_estadio, anchor="rm")
     
     # 10. Footer con información
     draw.rectangle([50, alto-70, ancho-50, alto-20], fill=(20, 24, 82, 255))
